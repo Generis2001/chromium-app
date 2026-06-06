@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import type { AiExplanation, ExplanationType } from "@/types";
 
 type GenerateExplanationParams = {
@@ -79,25 +79,28 @@ function buildUserPrompt(params: GenerateExplanationParams): string {
 export async function generateExplanation(
   params: GenerateExplanationParams,
 ): Promise<AiExplanation> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error("AI_NOT_CONFIGURED");
   }
 
-  const openai = new OpenAI({ apiKey });
+  const groq = new Groq({ apiKey });
 
   const systemPrompt = SYSTEM_PROMPTS[params.contractType];
   const userPrompt = buildUserPrompt(params);
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+  const completion = await groq.chat.completions.create({
+    model: "llama-3.1-8b-instant",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
+      {
+        role: "user",
+        content: userPrompt + "\n\nRespond with valid JSON only.",
+      },
     ],
-    response_format: { type: "json_object" },
     temperature: 0.3,
     max_tokens: 500,
+    response_format: { type: "json_object" },
   });
 
   const content = completion.choices[0]?.message?.content;
