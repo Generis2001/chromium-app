@@ -5,7 +5,9 @@
  *
  * Client-side GenLayer contract invocation via window.ethereum.
  * The user's wallet signs and pays for every transaction.
- * Results are read back from studionet after finality.
+ * Results come from the server-side simulate endpoint (same path
+ * that worked before payments were added) — no dependency on the
+ * broken write→readContract state cycle.
  */
 
 import { useState, useCallback } from 'react'
@@ -20,8 +22,6 @@ import type {
   CompareLocationsRequest,
   CheckAlertsRequest,
 } from '@/types'
-
-const TransactionStatus = { FINALIZED: 'FINALIZED' } as const
 
 // Fees in wei (1 GEN = 1e18 wei)
 const FEES = {
@@ -38,13 +38,9 @@ const CONTRACT_ADDRESSES = {
   weatherAlert: (process.env.NEXT_PUBLIC_GENLAYER_WEATHER_ALERT_ADDRESS || '') as `0x${string}`,
 }
 
-// Fallback: fetch addresses from API (since we don't have NEXT_PUBLIC_ vars yet)
 let addressCache: Record<string, string> | null = null
 async function getAddresses() {
-  if (
-    CONTRACT_ADDRESSES.weatherAnalysis &&
-    CONTRACT_ADDRESSES.weatherAnalysis !== '0x'
-  ) {
+  if (CONTRACT_ADDRESSES.weatherAnalysis && CONTRACT_ADDRESSES.weatherAnalysis !== '0x') {
     return CONTRACT_ADDRESSES
   }
   if (!addressCache) {
@@ -60,10 +56,6 @@ async function getAddresses() {
   }
 }
 
-// Build a genlayer client using window.ethereum as provider.
-// endpoint routes all HTTP fallback and read calls through our server proxy to
-// avoid CORS failures: genlayer-js falls back from window.ethereum to a direct
-// fetch() when MetaMask doesn't handle a method, and studionet blocks that fetch.
 function getWalletClient(address: string) {
   if (typeof window === 'undefined' || !window.ethereum) {
     throw new Error('MetaMask not available')
@@ -76,18 +68,17 @@ function getWalletClient(address: string) {
   })
 }
 
-// Wait for a GenLayer transaction to reach FINALIZED status
-async function waitForFinality(
-  client: ReturnType<typeof getWalletClient>,
-  txHash: string,
-  timeoutMs = 300_000,
-): Promise<void> {
-  await client.waitForTransactionReceipt({
-    hash: txHash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-    status: TransactionStatus.FINALIZED as Parameters<typeof client.waitForTransactionReceipt>[0]['status'],
-    interval: 3000,
-    retries: Math.ceil(timeoutMs / 3000),
+// Get result via server-side simulation — same path that worked before payments
+async function simulateContract<T>(contract: string, params: Record<string, string>): Promise<T> {
+  const res = await fetch('/api/contracts/simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contract, params }),
   })
+  const json = await res.json() as { ok: boolean; result?: T; error?: string }
+  if (!json.ok) throw new Error(json.error ?? 'Simulation failed')
+  if (json.result == null) throw new Error('Simulation returned no result')
+  return json.result
 }
 
 // ─── Weather Analysis ─────────────────────────────────────────────────────────
@@ -113,6 +104,7 @@ export function useClientWeatherAnalysis(walletAddress: string | null) {
       const addresses = await getAddresses()
       const client = getWalletClient(walletAddress)
 
+      // 1. Submit payment via MetaMask (blockchain record)
       const hash = await client.writeContract({
         address: addresses.weatherAnalysis,
         functionName: 'analyze_weather',
@@ -121,16 +113,14 @@ export function useClientWeatherAnalysis(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      await waitForFinality(client, hash)
-
-      const raw = await client.readContract({
-        address: addresses.weatherAnalysis,
-        functionName: 'get_analysis',
-        args: [],
+      // 2. Get result via server-side simulation (immediate, reliable)
+      const parsed = await simulateContract<WeatherDecision>('weatherAnalysis', {
+        lat: params.lat,
+        lon: params.lon,
+        query: params.query,
+        location_name: params.location_name,
       })
-      const rawStr = (raw as string) ?? ''
-      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
-      const parsed = JSON.parse(rawStr) as WeatherDecision
+
       setResult(parsed)
       return parsed
     } catch (err) {
@@ -164,6 +154,7 @@ export function useClientTravelComparison(walletAddress: string | null) {
       const addresses = await getAddresses()
       const client = getWalletClient(walletAddress)
 
+      // 1. Submit payment via MetaMask (blockchain record)
       const hash = await client.writeContract({
         address: addresses.travelComparison,
         functionName: 'compare_locations',
@@ -172,16 +163,13 @@ export function useClientTravelComparison(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      await waitForFinality(client, hash)
-
-      const raw = await client.readContract({
-        address: addresses.travelComparison,
-        functionName: 'get_comparison',
-        args: [],
+      // 2. Get result via server-side simulation (immediate, reliable)
+      const parsed = await simulateContract<ComparisonResult>('travelComparison', {
+        locations: JSON.stringify(params.locations),
+        purpose: params.purpose,
+        travel_date: params.travel_date,
       })
-      const rawStr = (raw as string) ?? ''
-      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
-      const parsed = JSON.parse(rawStr) as ComparisonResult
+
       setResult(parsed)
       return parsed
     } catch (err) {
@@ -215,6 +203,7 @@ export function useClientActivityRisk(walletAddress: string | null) {
       const addresses = await getAddresses()
       const client = getWalletClient(walletAddress)
 
+      // 1. Submit payment via MetaMask (blockchain record)
       const hash = await client.writeContract({
         address: addresses.activityRisk,
         functionName: 'assess_activity',
@@ -223,16 +212,16 @@ export function useClientActivityRisk(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      await waitForFinality(client, hash)
-
-      const raw = await client.readContract({
-        address: addresses.activityRisk,
-        functionName: 'get_assessment',
-        args: [],
+      // 2. Get result via server-side simulation (immediate, reliable)
+      const parsed = await simulateContract<ActivityAssessment>('activityRisk', {
+        lat: params.lat,
+        lon: params.lon,
+        activity: params.activity,
+        location_name: params.location_name,
+        target_date: params.target_date,
+        duration_hours: params.duration_hours,
       })
-      const rawStr = (raw as string) ?? ''
-      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
-      const parsed = JSON.parse(rawStr) as ActivityAssessment
+
       setResult(parsed)
       return parsed
     } catch (err) {
@@ -266,6 +255,7 @@ export function useClientWeatherAlerts(walletAddress: string | null) {
       const addresses = await getAddresses()
       const client = getWalletClient(walletAddress)
 
+      // 1. Submit payment via MetaMask (blockchain record)
       const hash = await client.writeContract({
         address: addresses.weatherAlert,
         functionName: 'check_alerts',
@@ -274,31 +264,26 @@ export function useClientWeatherAlerts(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      await waitForFinality(client, hash)
-
-      const raw = await client.readContract({
-        address: addresses.weatherAlert,
-        functionName: 'get_alerts',
-        args: [],
+      // 2. Get result via server-side simulation (immediate, reliable)
+      const parsedRaw = await simulateContract<AlertsResult | WeatherAlert[]>('weatherAlert', {
+        lat: params.lat,
+        lon: params.lon,
+        location_name: params.location_name,
+        lookahead_hours: params.lookahead_hours,
       })
-      const rawStr = (raw as string) ?? ''
-      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
-      const parsedRaw = JSON.parse(rawStr) as AlertsResult | WeatherAlert[]
-      let alerts: AlertsResult['alerts']
+
       const parsed: AlertsResult = Array.isArray(parsedRaw)
-        ? (() => {
-            alerts = parsedRaw as WeatherAlert[]
-            return {
-              alerts,
-              location: params.location_name,
-              lat: params.lat,
-              lon: params.lon,
-              overall_severity: alerts[0]?.severity ?? 'WATCH',
-              alert_count: alerts.length,
-              summary: '',
-            }
-          })()
+        ? {
+            alerts: parsedRaw as WeatherAlert[],
+            location: params.location_name,
+            lat: params.lat,
+            lon: params.lon,
+            overall_severity: (parsedRaw as WeatherAlert[])[0]?.severity ?? 'NONE',
+            alert_count: (parsedRaw as WeatherAlert[]).length,
+            summary: '',
+          }
         : parsedRaw
+
       setResult(parsed)
       return parsed
     } catch (err) {
