@@ -21,6 +21,14 @@ import {
 
 const { studionet } = chains;
 
+// Fees in wei — must match REQUIRED_FEE in each Python contract
+const FEES = {
+  weatherAnalysis: BigInt("500000000000000000"),   // 0.5 GEN
+  travelComparison: BigInt("1000000000000000000"),  // 1 GEN
+  activityRisk: BigInt("500000000000000000"),        // 0.5 GEN
+  weatherAlert: BigInt("500000000000000000"),        // 0.5 GEN
+} as const;
+
 // ─── contract addresses ──────────────────────────────────────────────────────
 const CONTRACT_ADDRESSES = {
   weatherAnalysis: (process.env.GENLAYER_WEATHER_ANALYSIS_ADDRESS ||
@@ -115,7 +123,7 @@ export function resetCircuit(contractName: string): void {
 // ─── retry with exponential backoff + jitter ─────────────────────────────────
 async function withRetry<T>(
   fn: () => Promise<T>,
-  maxAttempts = 3,
+  maxAttempts = 1,
   baseDelayMs = 1000,
 ): Promise<T> {
   let lastError: unknown;
@@ -197,7 +205,7 @@ export async function invokeWeatherAnalysis(params: {
         address: CONTRACT_ADDRESSES.weatherAnalysis,
         functionName: "analyze_weather",
         args: [params.lat, params.lon, params.query, params.location_name],
-        value: BigInt(0),
+        value: FEES.weatherAnalysis,
       });
 
       await waitForFinality(client, txHash as `0x${string}`);
@@ -240,7 +248,7 @@ export async function invokeTravelComparison(params: {
           params.purpose,
           params.travel_date,
         ],
-        value: BigInt(0),
+        value: FEES.travelComparison,
       });
 
       await waitForFinality(client, txHash as `0x${string}`);
@@ -289,7 +297,7 @@ export async function invokeActivityRisk(params: {
           params.target_date,
           params.duration_hours,
         ],
-        value: BigInt(0),
+        value: FEES.activityRisk,
       });
 
       await waitForFinality(client, txHash as `0x${string}`);
@@ -334,7 +342,7 @@ export async function invokeWeatherAlert(params: {
           params.location_name,
           params.lookahead_hours,
         ],
-        value: BigInt(0),
+        value: FEES.weatherAlert,
       });
 
       await waitForFinality(client, txHash as `0x${string}`);
