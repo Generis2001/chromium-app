@@ -1,22 +1,10 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """
-TravelComparisonContract — compares multiple cities for a specific travel purpose.
+TravelComparisonContract — compares multiple cities for a specific travel purpose
+using deterministic scoring only (no LLM calls).
 """
 from genlayer import *
 import json
-import re
-
-
-def _extract_json(text: str) -> str:
-    text = text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text.strip())
-    text = text.strip()
-    start = text.find('{')
-    end = text.rfind('}') + 1
-    if start >= 0 and end > start:
-        return text[start:end]
-    return text
 
 
 class TravelComparisonContract(gl.Contract):
@@ -32,292 +20,215 @@ class TravelComparisonContract(gl.Contract):
         return self.last_comparison
 
     @gl.public.write
-    def compare_locations(
-        self,
-        locations_json: str,
-        purpose: str,
-        travel_date: str,
-    ) -> None:
+    def compare_locations(self, locations_json: str, purpose: str, travel_date: str) -> None:
+        PURPOSE_WEIGHTS = {
+            "travel":        {"comfort": 0.35, "precipitation": 0.30, "wind": 0.20, "visibility": 0.15},
+            "business":      {"comfort": 0.40, "precipitation": 0.25, "wind": 0.15, "visibility": 0.20},
+            "outdoor_sports":{"comfort": 0.25, "precipitation": 0.30, "wind": 0.25, "visibility": 0.20},
+            "photography":   {"comfort": 0.20, "precipitation": 0.20, "wind": 0.15, "visibility": 0.45},
+            "hiking":        {"comfort": 0.30, "precipitation": 0.30, "wind": 0.25, "visibility": 0.15},
+            "beach":         {"comfort": 0.40, "precipitation": 0.25, "wind": 0.20, "visibility": 0.15},
+        }
+
+        PURPOSE_NOTES = {
+            "travel":        "Comfort and low precipitation are most important for general travel.",
+            "business":      "Comfort and reliable visibility matter most for business travel.",
+            "outdoor_sports":"Precipitation and wind are the key factors for outdoor sports.",
+            "photography":   "Visibility and light quality are critical for photography conditions.",
+            "hiking":        "Low precipitation and manageable wind are essential for hiking.",
+            "beach":         "Warmth, sunshine, and calm winds define the ideal beach day.",
+        }
+
         def leader_fn():
-            try:
-                locations = json.loads(locations_json)
-                if len(locations) > 5:
-                    locations = locations[:5]
+            locations = json.loads(locations_json)
+            if len(locations) > 5:
+                locations = locations[:5]
 
-                purpose_weights = {
-                    "travel": {"comfort": 0.35, "precipitation": 0.30, "wind": 0.20, "visibility": 0.15},
-                    "business": {"comfort": 0.40, "precipitation": 0.25, "wind": 0.15, "visibility": 0.20},
-                    "outdoor_sports": {"comfort": 0.25, "precipitation": 0.30, "wind": 0.25, "visibility": 0.20},
-                    "photography": {"comfort": 0.20, "precipitation": 0.20, "wind": 0.15, "visibility": 0.45},
-                    "hiking": {"comfort": 0.30, "precipitation": 0.30, "wind": 0.25, "visibility": 0.15},
-                    "beach": {"comfort": 0.40, "precipitation": 0.25, "wind": 0.20, "visibility": 0.15},
-                }
-                weights = purpose_weights.get(purpose, purpose_weights["travel"])
+            weights = PURPOSE_WEIGHTS.get(purpose, PURPOSE_WEIGHTS["travel"])
 
-                city_data = []
-                for loc in locations:
-                    url = (
-                        f"https://api.open-meteo.com/v1/forecast"
-                        f"?latitude={loc['lat']}&longitude={loc['lon']}"
-                        f"&current=temperature_2m,apparent_temperature,weather_code,"
-                        f"wind_speed_10m,wind_gusts_10m,precipitation,rain,snowfall,"
-                        f"relative_humidity_2m,visibility,uv_index"
-                        f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,"
-                        f"wind_speed_10m_max,wind_gusts_10m_max,weather_code,"
-                        f"precipitation_probability_max,uv_index_max"
-                        f"&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius"
-                        f"&precipitation_unit=mm&timezone=auto"
-                    )
-                    raw = gl.nondet.web.get(url).body
-                    data = json.loads(raw)
+            day_idx = 0
+            if travel_date == "tomorrow":
+                day_idx = 1
+            elif travel_date in ("weekend", "saturday"):
+                day_idx = 5
+            elif travel_date == "sunday":
+                day_idx = 6
 
-                    current = data.get("current", {})
-                    daily = data.get("daily", {})
+            def precip_score(mm):
+                if mm is None: return 80
+                if mm == 0: return 100
+                if mm < 1: return 90
+                if mm < 5: return 70
+                if mm < 15: return 45
+                if mm < 30: return 20
+                return 5
 
-                    day_idx = 0
-                    if travel_date == "tomorrow":
-                        day_idx = 1
-                    elif travel_date in ("weekend", "saturday"):
-                        day_idx = 5
-                    elif travel_date == "sunday":
-                        day_idx = 6
+            def wind_score(w, g):
+                top = max(w or 0, g or 0)
+                if top < 10: return 100
+                if top < 20: return 90
+                if top < 35: return 70
+                if top < 50: return 50
+                if top < 70: return 25
+                return 5
 
-                    def safe_list_get(lst, idx, default=None):
-                        if lst and len(lst) > idx:
-                            return lst[idx]
-                        return default
+            def comfort_score(t_max, t_min):
+                if t_max is None or t_min is None: return 70
+                avg = (t_max + t_min) / 2
+                s = 100
+                if avg < 0: s -= 40
+                elif avg < 8: s -= 20
+                elif avg < 15: s -= 5
+                elif avg > 38: s -= 40
+                elif avg > 32: s -= 20
+                elif avg > 28: s -= 8
+                return max(0, min(100, s))
 
-                    def precip_score(precip_mm):
-                        if precip_mm is None:
-                            return 80
-                        if precip_mm == 0:
-                            return 100
-                        if precip_mm < 1:
-                            return 90
-                        if precip_mm < 5:
-                            return 70
-                        if precip_mm < 15:
-                            return 45
-                        if precip_mm < 30:
-                            return 20
-                        return 5
+            def visibility_score(v):
+                if v is None: return 80
+                if v >= 10000: return 100
+                if v >= 5000: return 85
+                if v >= 2000: return 60
+                if v >= 500: return 30
+                return 5
 
-                    def wind_score(wind_kmh, gusts_kmh):
-                        w = wind_kmh or 0
-                        g = gusts_kmh or 0
-                        top = max(w, g)
-                        if top < 10:
-                            return 100
-                        if top < 20:
-                            return 90
-                        if top < 35:
-                            return 70
-                        if top < 50:
-                            return 50
-                        if top < 70:
-                            return 25
-                        return 5
+            def wmo_condition(code):
+                if code is None: return "unknown"
+                c = int(code)
+                if c == 0: return "clear"
+                if c in (1, 2, 3): return "partly cloudy"
+                if c in range(45, 50): return "foggy"
+                if c in range(51, 68): return "rain"
+                if c in range(71, 78): return "snow"
+                if c in range(80, 83): return "showers"
+                if c in range(95, 100): return "thunderstorm"
+                return "overcast"
 
-                    def comfort_score(temp_max, temp_min, humidity=None):
-                        if temp_max is None or temp_min is None:
-                            return 70
-                        avg = (temp_max + temp_min) / 2
-                        score = 100
-                        if avg < 0:
-                            score -= 40
-                        elif avg < 8:
-                            score -= 20
-                        elif avg < 15:
-                            score -= 5
-                        elif avg > 38:
-                            score -= 40
-                        elif avg > 32:
-                            score -= 20
-                        elif avg > 28:
-                            score -= 8
-                        return max(0, min(100, score))
+            def sl(lst, idx, default=None):
+                return lst[idx] if lst and len(lst) > idx else default
 
-                    def visibility_score(vis_m):
-                        if vis_m is None:
-                            return 80
-                        if vis_m >= 10000:
-                            return 100
-                        if vis_m >= 5000:
-                            return 85
-                        if vis_m >= 2000:
-                            return 60
-                        if vis_m >= 500:
-                            return 30
-                        return 5
+            city_data = []
+            for loc in locations:
+                url = (
+                    f"https://api.open-meteo.com/v1/forecast"
+                    f"?latitude={loc['lat']}&longitude={loc['lon']}"
+                    f"&current=temperature_2m,apparent_temperature,weather_code,"
+                    f"wind_speed_10m,wind_gusts_10m,precipitation,visibility"
+                    f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,"
+                    f"wind_speed_10m_max,wind_gusts_10m_max,weather_code,"
+                    f"precipitation_probability_max"
+                    f"&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius"
+                    f"&precipitation_unit=mm&timezone=auto"
+                )
+                raw = gl.nondet.web.get(url).body
+                data = json.loads(raw)
+                current = data.get("current", {})
+                daily = data.get("daily", {})
 
-                    def wmo_to_condition(code):
-                        if code is None:
-                            return "unknown"
-                        code = int(code)
-                        if code == 0:
-                            return "clear"
-                        if code in (1, 2, 3):
-                            return "partly_cloudy"
-                        if code in range(45, 50):
-                            return "fog"
-                        if code in range(51, 68):
-                            return "drizzle_rain"
-                        if code in range(71, 78):
-                            return "snow"
-                        if code in range(80, 83):
-                            return "showers"
-                        if code in range(95, 100):
-                            return "thunderstorm"
-                        return "other"
+                if day_idx == 0:
+                    ps = precip_score(current.get("precipitation"))
+                    ws = wind_score(current.get("wind_speed_10m"), current.get("wind_gusts_10m"))
+                    cs = comfort_score(current.get("temperature_2m"), current.get("apparent_temperature"))
+                    vs = visibility_score(current.get("visibility"))
+                    cond = wmo_condition(current.get("weather_code"))
+                    temp_c = current.get("temperature_2m")
+                else:
+                    ps = precip_score(sl(daily.get("precipitation_sum"), day_idx))
+                    ws = wind_score(sl(daily.get("wind_speed_10m_max"), day_idx), sl(daily.get("wind_gusts_10m_max"), day_idx))
+                    cs = comfort_score(sl(daily.get("temperature_2m_max"), day_idx), sl(daily.get("temperature_2m_min"), day_idx))
+                    vs = visibility_score(None)
+                    cond = wmo_condition(sl(daily.get("weather_code"), day_idx))
+                    t_max = sl(daily.get("temperature_2m_max"), day_idx) or 20
+                    t_min = sl(daily.get("temperature_2m_min"), day_idx) or 10
+                    temp_c = (t_max + t_min) / 2
 
-                    if day_idx == 0:
-                        ps = precip_score(current.get("precipitation"))
-                        ws = wind_score(current.get("wind_speed_10m"), current.get("wind_gusts_10m"))
-                        cs = comfort_score(current.get("temperature_2m"), current.get("apparent_temperature"))
-                        vs = visibility_score(current.get("visibility"))
-                        condition = wmo_to_condition(current.get("weather_code"))
-                    else:
-                        ps = precip_score(safe_list_get(daily.get("precipitation_sum"), day_idx))
-                        ws = wind_score(
-                            safe_list_get(daily.get("wind_speed_10m_max"), day_idx),
-                            safe_list_get(daily.get("wind_gusts_10m_max"), day_idx),
-                        )
-                        cs = comfort_score(
-                            safe_list_get(daily.get("temperature_2m_max"), day_idx),
-                            safe_list_get(daily.get("temperature_2m_min"), day_idx),
-                        )
-                        vs = visibility_score(None)
-                        condition = wmo_to_condition(safe_list_get(daily.get("weather_code"), day_idx))
-
-                    overall = (
-                        cs * weights["comfort"]
-                        + ps * weights["precipitation"]
-                        + ws * weights["wind"]
-                        + vs * weights["visibility"]
-                    )
-
-                    city_data.append({
-                        "name": loc["name"],
-                        "lat": loc["lat"],
-                        "lon": loc["lon"],
-                        "overall_score": round(overall, 1),
-                        "comfort_score": cs,
-                        "precipitation_score": ps,
-                        "wind_score": ws,
-                        "visibility_score": vs,
-                        "condition": condition,
-                        "temp_current": current.get("temperature_2m"),
-                    })
-
-                city_data.sort(key=lambda x: (-x["overall_score"], x["name"]))
-                best = city_data[0]
-
-                scores_table = "\n".join(
-                    f"{i+1}. {c['name']}: overall={c['overall_score']}, "
-                    f"comfort={c['comfort_score']}, precip={c['precipitation_score']}, "
-                    f"wind={c['wind_score']}, visibility={c['visibility_score']}, "
-                    f"condition={c['condition']}"
-                    for i, c in enumerate(city_data)
+                overall = round(
+                    cs * weights["comfort"] +
+                    ps * weights["precipitation"] +
+                    ws * weights["wind"] +
+                    vs * weights["visibility"],
+                    1
                 )
 
-                prompt = f"""You are a travel meteorologist inside a GenLayer Intelligent Contract.
-Explain why {best['name']} is the best choice for "{purpose}" travel on {travel_date}.
+                city_data.append({
+                    "name": loc["name"],
+                    "lat": loc["lat"],
+                    "lon": loc["lon"],
+                    "overall_score": overall,
+                    "comfort_score": cs,
+                    "precipitation_score": ps,
+                    "wind_score": ws,
+                    "visibility_score": vs,
+                    "condition": cond,
+                    "temp_current": temp_c,
+                })
 
-PRE-COMPUTED RANKED SCORES (authoritative — do NOT override the ranking):
-{scores_table}
+            city_data.sort(key=lambda x: (-x["overall_score"], x["name"]))
+            best = city_data[0]
+            runner_up = city_data[1] if len(city_data) > 1 else None
 
-PURPOSE: {purpose}
-TRAVEL DATE: {travel_date}
+            # Build reasoning from scores
+            reasoning_parts = [
+                f"{best['name']} ranks first with a weather score of {best['overall_score']:.0f}/100 "
+                f"({best['condition']} conditions"
+                + (f", {best['temp_current']:.0f}°C" if best['temp_current'] is not None else "")
+                + ")"
+            ]
+            if runner_up:
+                gap = best["overall_score"] - runner_up["overall_score"]
+                reasoning_parts.append(
+                    f"{runner_up['name']} scores {runner_up['overall_score']:.0f} "
+                    f"({gap:.0f} points behind, {runner_up['condition']})"
+                )
+            reasoning = ". ".join(reasoning_parts) + f" for {purpose} on {travel_date}."
 
-Respond ONLY with a valid JSON object:
-{{
-  "best_location": "{best['name']}",
-  "reasoning": "<2-3 sentences comparing top options and explaining why best wins>",
-  "ranked_locations": <copy the same ranked list with added "rank" key and "reason" per city>,
-  "purpose_note": "<one sentence about what matters most for {purpose} travel>"
-}}
+            ranked = []
+            for i, c in enumerate(city_data):
+                score_desc = []
+                if c["comfort_score"] >= 80: score_desc.append("comfortable temps")
+                elif c["comfort_score"] < 50: score_desc.append("uncomfortable temps")
+                if c["precipitation_score"] >= 90: score_desc.append("dry")
+                elif c["precipitation_score"] < 50: score_desc.append("wet")
+                if c["wind_score"] >= 90: score_desc.append("calm")
+                elif c["wind_score"] < 50: score_desc.append("windy")
+                reason = f"{c['condition'].title()}" + (f", {', '.join(score_desc)}" if score_desc else "") + f". Score: {c['overall_score']:.0f}/100"
+                ranked.append({
+                    "rank": i + 1,
+                    "name": c["name"],
+                    "overall_score": c["overall_score"],
+                    "reason": reason,
+                    "condition": c["condition"],
+                })
 
-The ranked_locations list must preserve the pre-computed score ordering exactly.
-Each entry: {{"rank": int, "name": str, "overall_score": float, "reason": str, "condition": str}}
-"""
-
-                try:
-                    result_str = gl.nondet.exec_prompt(prompt)
-                    result = json.loads(_extract_json(result_str))
-                except Exception:
-                    result = {
-                        "best_location": best["name"],
-                        "reasoning": f"{best['name']} ranks highest with a score of {best['overall_score']:.1f} for {purpose} travel on {travel_date}.",
-                        "ranked_locations": [
-                            {
-                                "rank": i + 1,
-                                "name": c["name"],
-                                "overall_score": c["overall_score"],
-                                "reason": f"Score {c['overall_score']:.1f} — {c['condition'].replace('_', ' ')} conditions.",
-                                "condition": c["condition"],
-                            }
-                            for i, c in enumerate(city_data)
-                        ],
-                        "purpose_note": f"Weather ranked for {purpose} travel.",
-                    }
-
-                result["best_location"] = best["name"]
-                result["scores"] = city_data
-                result["purpose"] = purpose
-                result["travel_date"] = travel_date
-                return result
-
-            except Exception:
-                locs = json.loads(locations_json) if isinstance(locations_json, str) else []
-                first_name = locs[0]["name"] if locs else "Unknown"
-                return {
-                    "best_location": first_name,
-                    "reasoning": f"Weather data could not be retrieved. Please try again.",
-                    "ranked_locations": [
-                        {"rank": i + 1, "name": l["name"], "overall_score": 0, "reason": "Data unavailable", "condition": "unknown"}
-                        for i, l in enumerate(locs)
-                    ],
-                    "purpose_note": f"Could not rank locations for {purpose} travel.",
-                    "scores": [],
-                    "purpose": purpose,
-                    "travel_date": travel_date,
-                }
+            return {
+                "best_location": best["name"],
+                "reasoning": reasoning,
+                "ranked_locations": ranked,
+                "purpose_note": PURPOSE_NOTES.get(purpose, f"Weather ranked for {purpose} travel."),
+                "scores": city_data,
+                "purpose": purpose,
+                "travel_date": travel_date,
+                "partial_failures": [],
+            }
 
         def validator_fn(leaders_res) -> bool:
             if not isinstance(leaders_res, gl.vm.Return):
                 return False
-            leader_data = leaders_res.calldata
             try:
+                leader_data = leaders_res.calldata
                 my_result = leader_fn()
                 if my_result["best_location"] != leader_data.get("best_location"):
                     return False
-                leader_scores = sorted(leader_data.get("scores", []), key=lambda x: -x["overall_score"])
-                my_scores = sorted(my_result.get("scores", []), key=lambda x: -x["overall_score"])
-                if not leader_scores or not my_scores:
+                ls = sorted(leader_data.get("scores", []), key=lambda x: -x["overall_score"])
+                ms = sorted(my_result.get("scores", []), key=lambda x: -x["overall_score"])
+                if not ls or not ms:
                     return False
-                if abs(leader_scores[0]["overall_score"] - my_scores[0]["overall_score"]) > 12:
+                if abs(ls[0]["overall_score"] - ms[0]["overall_score"]) > 12:
                     return False
                 return True
             except Exception:
                 return False
 
-        try:
-            result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
-        except Exception:
-            locs = json.loads(locations_json) if isinstance(locations_json, str) else []
-            first_name = locs[0]["name"] if locs else "Unknown"
-            result = {
-                "best_location": first_name,
-                "reasoning": "Comparison consensus could not be reached. Please try again.",
-                "ranked_locations": [
-                    {"rank": i + 1, "name": l["name"], "overall_score": 0, "reason": "Consensus failed", "condition": "unknown"}
-                    for i, l in enumerate(locs)
-                ],
-                "purpose_note": f"Could not rank locations for {purpose} travel.",
-                "scores": [],
-                "purpose": purpose,
-                "travel_date": travel_date,
-            }
-
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         self.last_comparison = json.dumps(result)
         self.comparison_count = u64(int(self.comparison_count) + 1)

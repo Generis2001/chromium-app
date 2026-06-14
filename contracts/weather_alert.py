@@ -1,22 +1,35 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """
-WeatherAlertContract — detects extreme weather conditions and generates structured alerts.
+WeatherAlertContract — detects extreme weather conditions deterministically.
+No LLM calls — all alert text is generated from weather thresholds.
 """
 from genlayer import *
 import json
-import re
 
 
-def _extract_json(text: str) -> str:
-    text = text.strip()
-    text = re.sub(r'^```(?:json)?\s*', '', text)
-    text = re.sub(r'\s*```$', '', text.strip())
-    text = text.strip()
-    start = text.find('{')
-    end = text.rfind('}') + 1
-    if start >= 0 and end > start:
-        return text[start:end]
-    return text
+ALERT_TITLES = {
+    "thunderstorm":       "Thunderstorm Warning",
+    "heavy_precipitation":"Heavy Precipitation Warning",
+    "extreme_heat":       "Extreme Heat Warning",
+    "extreme_cold":       "Extreme Cold Warning",
+    "high_wind":          "High Wind Warning",
+    "dense_fog":          "Dense Fog Advisory",
+    "heavy_snow":         "Heavy Snowfall Warning",
+    "extreme_uv":         "Extreme UV Advisory",
+    "rapid_pressure_drop":"Rapid Pressure Drop Watch",
+}
+
+ALERT_SAFETY = {
+    "thunderstorm":       ["Seek indoor shelter immediately", "Stay away from trees and open fields", "Unplug electronic devices"],
+    "heavy_precipitation":["Avoid flood-prone areas", "Do not drive through standing water", "Monitor drainage around property"],
+    "extreme_heat":       ["Stay hydrated and indoors during peak hours", "Check on elderly neighbours", "Never leave children or pets in vehicles"],
+    "extreme_cold":       ["Dress in warm layers", "Limit outdoor exposure", "Watch for signs of frostbite and hypothermia"],
+    "high_wind":          ["Secure loose outdoor items", "Avoid travel if possible", "Stay clear of trees and power lines"],
+    "dense_fog":          ["Slow down and use fog lights when driving", "Allow extra journey time", "Increase following distance"],
+    "heavy_snow":         ["Avoid unnecessary travel", "Keep emergency kit in vehicle", "Clear snow from vents and roofs"],
+    "extreme_uv":         ["Apply SPF 50+ sunscreen", "Wear protective clothing and hat", "Seek shade during 10am–4pm"],
+    "rapid_pressure_drop":["Monitor updated forecasts closely", "Prepare for deteriorating conditions", "Secure outdoor items in advance"],
+}
 
 
 class WeatherAlertContract(gl.Contract):
@@ -40,251 +53,153 @@ class WeatherAlertContract(gl.Contract):
         return self.alert_count
 
     @gl.public.write
-    def check_alerts(
-        self,
-        lat: str,
-        lon: str,
-        location_name: str,
-        lookahead_hours: str,
-    ) -> None:
+    def check_alerts(self, lat: str, lon: str, location_name: str, lookahead_hours: str) -> None:
         def leader_fn():
-            try:
-                hours = int(lookahead_hours) if lookahead_hours.isdigit() else 24
-                hours = min(max(hours, 24), 72)
-                forecast_days = (hours + 23) // 24
+            hours = int(lookahead_hours) if lookahead_hours.isdigit() else 24
+            hours = min(max(hours, 6), 72)
+            forecast_days = max(1, (hours + 23) // 24)
 
-                url = (
-                    f"https://api.open-meteo.com/v1/forecast"
-                    f"?latitude={lat}&longitude={lon}"
-                    f"&current=temperature_2m,weather_code,wind_speed_10m,"
-                    f"wind_gusts_10m,precipitation,visibility,pressure_msl,uv_index"
-                    f"&hourly=temperature_2m,weather_code,wind_speed_10m,"
-                    f"wind_gusts_10m,precipitation,visibility,pressure_msl,uv_index,"
-                    f"snowfall,snow_depth"
-                    f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,"
-                    f"snowfall_sum,wind_speed_10m_max,wind_gusts_10m_max,weather_code,"
-                    f"uv_index_max,precipitation_probability_max"
-                    f"&forecast_days={forecast_days}&wind_speed_unit=kmh"
-                    f"&temperature_unit=celsius&precipitation_unit=mm&timezone=auto"
-                )
+            url = (
+                f"https://api.open-meteo.com/v1/forecast"
+                f"?latitude={lat}&longitude={lon}"
+                f"&hourly=temperature_2m,weather_code,wind_speed_10m,"
+                f"wind_gusts_10m,precipitation,visibility,pressure_msl,uv_index,snowfall"
+                f"&forecast_days={forecast_days}&wind_speed_unit=kmh"
+                f"&temperature_unit=celsius&precipitation_unit=mm&timezone=auto"
+            )
 
-                raw = gl.nondet.web.get(url).body
-                data = json.loads(raw)
+            raw = gl.nondet.web.get(url).body
+            data = json.loads(raw)
+            hourly = data.get("hourly", {})
 
-                hourly = data.get("hourly", {})
+            h_temp   = hourly.get("temperature_2m", [])[:hours]
+            h_wcode  = hourly.get("weather_code", [])[:hours]
+            h_wind   = hourly.get("wind_speed_10m", [])[:hours]
+            h_gusts  = hourly.get("wind_gusts_10m", [])[:hours]
+            h_precip = hourly.get("precipitation", [])[:hours]
+            h_vis    = hourly.get("visibility", [])[:hours]
+            h_pres   = hourly.get("pressure_msl", [])[:hours]
+            h_uv     = hourly.get("uv_index", [])[:hours]
+            h_snow   = hourly.get("snowfall", [])[:hours]
 
-                h_temp = hourly.get("temperature_2m", [])[:hours]
-                h_wcode = hourly.get("weather_code", [])[:hours]
-                h_wind = hourly.get("wind_speed_10m", [])[:hours]
-                h_gusts = hourly.get("wind_gusts_10m", [])[:hours]
-                h_precip = hourly.get("precipitation", [])[:hours]
-                h_vis = hourly.get("visibility", [])[:hours]
-                h_pressure = hourly.get("pressure_msl", [])[:hours]
-                h_uv = hourly.get("uv_index", [])[:hours]
-                h_snow = hourly.get("snowfall", [])[:hours]
+            def sm(lst): return max((x for x in lst if x is not None), default=0)
+            def sn(lst): return min((x for x in lst if x is not None), default=0)
+            def ss(lst): return sum(x for x in lst if x is not None)
+            def iw(lst, fn): return [i for i, v in enumerate(lst) if v is not None and fn(v)]
 
-                raw_alerts = []
+            raw_alerts = []
 
-                def safe_max(lst):
-                    filtered = [x for x in lst if x is not None]
-                    return max(filtered) if filtered else 0
+            thunder = iw(h_wcode, lambda c: int(c) >= 95)
+            if thunder:
+                sev = "EMERGENCY" if len(thunder) >= 3 else "WARNING"
+                raw_alerts.append({"type": "thunderstorm", "severity": sev, "affected_hours": thunder, "peak_value": max(int(h_wcode[i]) for i in thunder)})
 
-                def safe_min(lst):
-                    filtered = [x for x in lst if x is not None]
-                    return min(filtered) if filtered else 0
+            tp = ss(h_precip)
+            mp = sm(h_precip)
+            if tp > 50 or mp > 15:
+                sev = "EMERGENCY" if (tp > 100 or mp > 30) else "WARNING"
+                raw_alerts.append({"type": "heavy_precipitation", "severity": sev, "affected_hours": iw(h_precip, lambda p: p > 5), "peak_value": round(mp, 1)})
 
-                def safe_sum(lst):
-                    return sum(x for x in lst if x is not None)
+            mx_t = sm(h_temp)
+            if mx_t > 38:
+                raw_alerts.append({"type": "extreme_heat", "severity": "EMERGENCY" if mx_t > 43 else "WARNING", "affected_hours": iw(h_temp, lambda t: t > 38), "peak_value": round(mx_t, 1)})
 
-                def indices_where(lst, fn):
-                    return [i for i, v in enumerate(lst) if v is not None and fn(v)]
+            mn_t = sn(h_temp)
+            if mn_t < -15:
+                raw_alerts.append({"type": "extreme_cold", "severity": "EMERGENCY" if mn_t < -25 else "WARNING", "affected_hours": iw(h_temp, lambda t: t < -15), "peak_value": round(mn_t, 1)})
 
-                thunder_indices = indices_where(h_wcode, lambda c: int(c) >= 95)
-                if thunder_indices:
-                    severity = "EMERGENCY" if len(thunder_indices) >= 3 else "WARNING"
-                    raw_alerts.append({"type": "thunderstorm", "severity": severity, "affected_hours": thunder_indices, "peak_value": max(int(h_wcode[i]) for i in thunder_indices)})
+            mw = sm(h_wind)
+            mg = sm(h_gusts)
+            if mw > 80 or mg > 100:
+                raw_alerts.append({"type": "high_wind", "severity": "EMERGENCY" if (mw > 100 or mg > 130) else "WARNING", "affected_hours": iw(h_wind, lambda w: w > 60), "peak_value": round(mg, 1)})
 
-                total_precip = safe_sum(h_precip)
-                max_hourly_precip = safe_max(h_precip)
-                if total_precip > 50 or max_hourly_precip > 15:
-                    severity = "EMERGENCY" if (total_precip > 100 or max_hourly_precip > 30) else "WARNING"
-                    raw_alerts.append({"type": "heavy_precipitation", "severity": severity, "affected_hours": indices_where(h_precip, lambda p: p > 5), "peak_value": round(max_hourly_precip, 1), "total_mm": round(total_precip, 1)})
+            mv = sn(h_vis)
+            if mv < 500:
+                raw_alerts.append({"type": "dense_fog", "severity": "EMERGENCY" if mv < 100 else "WARNING", "affected_hours": iw(h_vis, lambda v: v < 500), "peak_value": round(mv, 0)})
 
-                max_temp = safe_max(h_temp)
-                if max_temp > 38:
-                    severity = "EMERGENCY" if max_temp > 43 else "WARNING"
-                    raw_alerts.append({"type": "extreme_heat", "severity": severity, "affected_hours": indices_where(h_temp, lambda t: t > 38), "peak_value": round(max_temp, 1)})
+            ts = ss(h_snow)
+            ms = sm(h_snow)
+            if ts > 20 or ms > 5:
+                raw_alerts.append({"type": "heavy_snow", "severity": "EMERGENCY" if ts >= 50 else "WARNING", "affected_hours": iw(h_snow, lambda s: s > 2), "peak_value": round(ms, 1)})
 
-                min_temp = safe_min(h_temp)
-                if min_temp < -15:
-                    severity = "EMERGENCY" if min_temp < -25 else "WARNING"
-                    raw_alerts.append({"type": "extreme_cold", "severity": severity, "affected_hours": indices_where(h_temp, lambda t: t < -15), "peak_value": round(min_temp, 1)})
+            mu = sm(h_uv)
+            if mu >= 11:
+                raw_alerts.append({"type": "extreme_uv", "severity": "WARNING", "affected_hours": iw(h_uv, lambda u: u >= 8), "peak_value": round(mu, 1)})
 
-                max_wind = safe_max(h_wind)
-                max_gusts = safe_max(h_gusts)
-                if max_wind > 80 or max_gusts > 100:
-                    severity = "EMERGENCY" if (max_wind > 100 or max_gusts > 130) else "WARNING"
-                    raw_alerts.append({"type": "high_wind", "severity": severity, "affected_hours": indices_where(h_wind, lambda w: w > 60), "peak_value": round(max_gusts, 1), "max_sustained_kmh": round(max_wind, 1)})
+            if len(h_pres) >= 6:
+                for i in range(len(h_pres) - 6):
+                    p1 = h_pres[i]
+                    p2 = h_pres[i + 6]
+                    if p1 is not None and p2 is not None and (p1 - p2) > 5:
+                        raw_alerts.append({"type": "rapid_pressure_drop", "severity": "WATCH", "affected_hours": list(range(i, min(i + 12, len(h_pres)))), "peak_value": round(p1 - p2, 1)})
+                        break
 
-                min_vis = safe_min(h_vis)
-                if min_vis < 500:
-                    severity = "EMERGENCY" if min_vis < 100 else "WARNING"
-                    raw_alerts.append({"type": "dense_fog", "severity": severity, "affected_hours": indices_where(h_vis, lambda v: v < 500), "peak_value": round(min_vis, 0)})
-
-                total_snow = safe_sum(h_snow)
-                max_hourly_snow = safe_max(h_snow)
-                if total_snow > 20 or max_hourly_snow > 5:
-                    severity = "WARNING" if total_snow < 50 else "EMERGENCY"
-                    raw_alerts.append({"type": "heavy_snow", "severity": severity, "affected_hours": indices_where(h_snow, lambda s: s > 2), "peak_value": round(max_hourly_snow, 1), "total_cm": round(total_snow, 1)})
-
-                max_uv = safe_max(h_uv)
-                if max_uv >= 11:
-                    raw_alerts.append({"type": "extreme_uv", "severity": "WARNING", "affected_hours": indices_where(h_uv, lambda u: u >= 8), "peak_value": round(max_uv, 1)})
-
-                if len(h_pressure) >= 6:
-                    for i in range(len(h_pressure) - 6):
-                        p1 = h_pressure[i]
-                        p2 = h_pressure[i + 6]
-                        if p1 is not None and p2 is not None and (p1 - p2) > 5:
-                            raw_alerts.append({"type": "rapid_pressure_drop", "severity": "WATCH", "affected_hours": list(range(i, min(i + 12, len(h_pressure)))), "peak_value": round(p1 - p2, 1)})
-                            break
-
-                if not raw_alerts:
-                    return {
-                        "location": location_name,
-                        "lat": lat,
-                        "lon": lon,
-                        "alert_count": 0,
-                        "alerts": [],
-                        "overall_severity": "NONE",
-                        "summary": f"No significant weather alerts for this location in the next {hours} hours.",
-                    }
-
-                severities = [a["severity"] for a in raw_alerts]
-                if "EMERGENCY" in severities:
-                    overall_severity = "EMERGENCY"
-                elif "WARNING" in severities:
-                    overall_severity = "WARNING"
-                else:
-                    overall_severity = "WATCH"
-
-                prompt = f"""You are a National Weather Service meteorologist embedded in a GenLayer Intelligent Contract.
-Generate structured weather alerts for {location_name}.
-
-DETECTED RAW ALERTS (authoritative — do NOT change type, severity, or peak_value):
-{json.dumps(raw_alerts, indent=2)}
-
-OVERALL SEVERITY: {overall_severity}
-LOOKAHEAD WINDOW: {hours} hours
-
-For each alert, expand it into a full alert object. Respond ONLY with valid JSON:
-{{
-  "location": "{location_name}",
-  "alert_count": {len(raw_alerts)},
-  "overall_severity": "{overall_severity}",
-  "summary": "<1-2 sentence overall situation summary>",
-  "alerts": [
-    {{
-      "id": "<type>_<index>",
-      "type": "<exact type from raw>",
-      "severity": "<exact severity from raw>",
-      "title": "<short alert title>",
-      "description": "<2 sentence meteorological explanation>",
-      "peak_value": <exact peak_value from raw>,
-      "affected_hours": <exact affected_hours from raw>,
-      "safety_actions": [<list of 3 specific safety actions>],
-      "expires_hours": <estimated hours until alert expires, integer>
-    }}
-  ]
-}}
-
-CRITICAL: Do not change type, severity, peak_value, or affected_hours from the raw data.
-"""
-
-                try:
-                    result_str = gl.nondet.exec_prompt(prompt)
-                    result = json.loads(_extract_json(result_str))
-                except Exception:
-                    result = {
-                        "location": location_name,
-                        "alert_count": len(raw_alerts),
-                        "overall_severity": overall_severity,
-                        "summary": f"{len(raw_alerts)} weather alert(s) detected for {location_name} in the next {hours} hours.",
-                        "alerts": [
-                            {
-                                "id": f"{a['type']}_{i}",
-                                "type": a["type"],
-                                "severity": a["severity"],
-                                "title": a["type"].replace("_", " ").title(),
-                                "description": f"{a['type'].replace('_', ' ').title()} conditions detected.",
-                                "peak_value": a.get("peak_value", 0),
-                                "affected_hours": a.get("affected_hours", []),
-                                "safety_actions": ["Monitor local weather updates", "Take appropriate precautions", "Follow official guidance"],
-                                "expires_hours": 24,
-                            }
-                            for i, a in enumerate(raw_alerts)
-                        ],
-                    }
-
-                result["location"] = location_name
-                result["lat"] = lat
-                result["lon"] = lon
-                result["alert_count"] = len(raw_alerts)
-                result["overall_severity"] = overall_severity
-                if "alerts" in result:
-                    for i, alert in enumerate(result["alerts"]):
-                        if i < len(raw_alerts):
-                            raw_a = raw_alerts[i]
-                            alert["type"] = raw_a["type"]
-                            alert["severity"] = raw_a["severity"]
-                            alert["peak_value"] = raw_a["peak_value"]
-                            alert["affected_hours"] = raw_a["affected_hours"]
-                return result
-
-            except Exception:
+            if not raw_alerts:
                 return {
-                    "location": location_name,
-                    "lat": lat,
-                    "lon": lon,
-                    "alert_count": 0,
-                    "alerts": [],
-                    "overall_severity": "NONE",
-                    "summary": f"Weather data could not be retrieved for {location_name}. Please try again.",
+                    "location": location_name, "lat": lat, "lon": lon,
+                    "alert_count": 0, "alerts": [], "overall_severity": "NONE",
+                    "summary": f"No significant weather alerts for {location_name} in the next {hours} hours.",
                 }
+
+            sevs = [a["severity"] for a in raw_alerts]
+            overall = "EMERGENCY" if "EMERGENCY" in sevs else ("WARNING" if "WARNING" in sevs else "WATCH")
+
+            alerts = []
+            for i, a in enumerate(raw_alerts):
+                t = a["type"]
+                aff = a.get("affected_hours", [])
+                pv = a.get("peak_value", 0)
+                desc_parts = {
+                    "thunderstorm":        f"Thunderstorm activity detected with WMO code {pv:.0f} across {len(aff)} affected hours.",
+                    "heavy_precipitation": f"Total precipitation of {ss(h_precip):.0f} mm expected with peak hourly rate of {pv} mm.",
+                    "extreme_heat":        f"Temperatures reaching {pv}°C detected across {len(aff)} hours.",
+                    "extreme_cold":        f"Temperatures dropping to {pv}°C detected across {len(aff)} hours.",
+                    "high_wind":           f"Wind gusts up to {pv} km/h expected across {len(aff)} hours.",
+                    "dense_fog":           f"Visibility dropping to {pv:.0f} m detected across {len(aff)} hours.",
+                    "heavy_snow":          f"Snowfall up to {pv} cm/h expected across {len(aff)} hours.",
+                    "extreme_uv":          f"UV index reaching {pv:.0f} across {len(aff)} hours.",
+                    "rapid_pressure_drop": f"Pressure drop of {pv} hPa detected over 6 hours — storm front approaching.",
+                }
+                alerts.append({
+                    "id": f"{t}_{i}",
+                    "type": t,
+                    "severity": a["severity"],
+                    "title": ALERT_TITLES.get(t, t.replace("_", " ").title()),
+                    "description": desc_parts.get(t, f"{t.replace('_', ' ').title()} conditions detected."),
+                    "peak_value": pv,
+                    "affected_hours": aff,
+                    "safety_actions": ALERT_SAFETY.get(t, ["Monitor local weather", "Take appropriate precautions", "Follow official guidance"]),
+                    "expires_hours": len(aff) if aff else hours,
+                })
+
+            summary_parts = [f"{overall} level alert for {location_name}"]
+            types = [a["type"].replace("_", " ") for a in raw_alerts]
+            summary_parts.append(f"Active conditions: {', '.join(types)}")
+            summary_parts.append(f"Covering the next {hours} hours.")
+
+            return {
+                "location": location_name, "lat": lat, "lon": lon,
+                "alert_count": len(alerts),
+                "alerts": alerts,
+                "overall_severity": overall,
+                "summary": " ".join(summary_parts),
+            }
 
         def validator_fn(leaders_res) -> bool:
             if not isinstance(leaders_res, gl.vm.Return):
                 return False
-            leader_data = leaders_res.calldata
             try:
+                leader_data = leaders_res.calldata
                 my_result = leader_fn()
-                leader_count = int(leader_data.get("alert_count", 0))
-                my_count = int(my_result.get("alert_count", 0))
-                if abs(leader_count - my_count) > 1:
+                if abs(int(my_result.get("alert_count", 0)) - int(leader_data.get("alert_count", 0))) > 1:
                     return False
                 if my_result.get("overall_severity") != leader_data.get("overall_severity"):
-                    return False
-                leader_alerts = {a["type"] for a in leader_data.get("alerts", []) if a.get("severity") == "EMERGENCY"}
-                my_alerts = {a["type"] for a in my_result.get("alerts", []) if a.get("severity") == "EMERGENCY"}
-                if leader_alerts != my_alerts:
                     return False
                 return True
             except Exception:
                 return False
 
-        try:
-            result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
-        except Exception:
-            result = {
-                "location": location_name,
-                "lat": lat,
-                "lon": lon,
-                "alert_count": 0,
-                "alerts": [],
-                "overall_severity": "NONE",
-                "summary": f"Alert check consensus could not be reached for {location_name}. Please try again.",
-            }
-
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         self.active_alerts = json.dumps(result)
         self.alert_count = u64(int(self.alert_count) + 1)
         self.last_checked_lat = lat
