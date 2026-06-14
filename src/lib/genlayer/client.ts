@@ -18,6 +18,12 @@ import {
   ContractValidationError,
   classifyError,
 } from "./errors";
+import {
+  computeWeatherAnalysis,
+  computeTravelComparison,
+  computeActivityRisk,
+  computeWeatherAlerts,
+} from "@/lib/weather/scoring";
 
 const { studionet } = chains;
 
@@ -194,37 +200,7 @@ export async function invokeWeatherAnalysis(params: {
   query: string;
   location_name: string;
 }): Promise<WeatherDecision> {
-  const contractName = "weatherAnalysis";
-  checkCircuit(contractName);
-
-  try {
-    const result = await withRetry(async () => {
-      const client = getClient();
-
-      const txHash = await client.writeContract({
-        address: CONTRACT_ADDRESSES.weatherAnalysis,
-        functionName: "analyze_weather",
-        args: [params.lat, params.lon, params.query, params.location_name],
-        value: FEES.weatherAnalysis,
-      });
-
-      await waitForFinality(client, txHash as `0x${string}`);
-
-      const raw = await client.readContract({
-        address: CONTRACT_ADDRESSES.weatherAnalysis,
-        functionName: "get_analysis",
-        args: [],
-      });
-
-      return JSON.parse(raw as string) as WeatherDecision;
-    });
-
-    recordSuccess(contractName);
-    return result;
-  } catch (err) {
-    recordFailure(contractName);
-    throw classifyError(err, contractName);
-  }
+  return computeWeatherAnalysis(params);
 }
 
 // ─── TravelComparisonContract ─────────────────────────────────────────────────
@@ -233,41 +209,7 @@ export async function invokeTravelComparison(params: {
   purpose: string;
   travel_date: string;
 }): Promise<ComparisonResult> {
-  const contractName = "travelComparison";
-  checkCircuit(contractName);
-
-  try {
-    const result = await withRetry(async () => {
-      const client = getClient();
-
-      const txHash = await client.writeContract({
-        address: CONTRACT_ADDRESSES.travelComparison,
-        functionName: "compare_locations",
-        args: [
-          JSON.stringify(params.locations),
-          params.purpose,
-          params.travel_date,
-        ],
-        value: FEES.travelComparison,
-      });
-
-      await waitForFinality(client, txHash as `0x${string}`);
-
-      const raw = await client.readContract({
-        address: CONTRACT_ADDRESSES.travelComparison,
-        functionName: "get_comparison",
-        args: [],
-      });
-
-      return JSON.parse(raw as string) as ComparisonResult;
-    });
-
-    recordSuccess(contractName);
-    return result;
-  } catch (err) {
-    recordFailure(contractName);
-    throw classifyError(err, contractName);
-  }
+  return computeTravelComparison(params);
 }
 
 // ─── ActivityRiskContract ────────────────────────────────────────────────────
@@ -279,44 +221,7 @@ export async function invokeActivityRisk(params: {
   target_date: string;
   duration_hours: string;
 }): Promise<ActivityAssessment> {
-  const contractName = "activityRisk";
-  checkCircuit(contractName);
-
-  try {
-    const result = await withRetry(async () => {
-      const client = getClient();
-
-      const txHash = await client.writeContract({
-        address: CONTRACT_ADDRESSES.activityRisk,
-        functionName: "assess_activity",
-        args: [
-          params.lat,
-          params.lon,
-          params.activity,
-          params.location_name,
-          params.target_date,
-          params.duration_hours,
-        ],
-        value: FEES.activityRisk,
-      });
-
-      await waitForFinality(client, txHash as `0x${string}`);
-
-      const raw = await client.readContract({
-        address: CONTRACT_ADDRESSES.activityRisk,
-        functionName: "get_assessment",
-        args: [],
-      });
-
-      return JSON.parse(raw as string) as ActivityAssessment;
-    });
-
-    recordSuccess(contractName);
-    return result;
-  } catch (err) {
-    recordFailure(contractName);
-    throw classifyError(err, contractName);
-  }
+  return computeActivityRisk(params);
 }
 
 // ─── WeatherAlertContract ────────────────────────────────────────────────────
@@ -326,42 +231,7 @@ export async function invokeWeatherAlert(params: {
   location_name: string;
   lookahead_hours: string;
 }): Promise<AlertsResult> {
-  const contractName = "weatherAlert";
-  checkCircuit(contractName);
-
-  try {
-    const result = await withRetry(async () => {
-      const client = getClient();
-
-      const txHash = await client.writeContract({
-        address: CONTRACT_ADDRESSES.weatherAlert,
-        functionName: "check_alerts",
-        args: [
-          params.lat,
-          params.lon,
-          params.location_name,
-          params.lookahead_hours,
-        ],
-        value: FEES.weatherAlert,
-      });
-
-      await waitForFinality(client, txHash as `0x${string}`);
-
-      const raw = await client.readContract({
-        address: CONTRACT_ADDRESSES.weatherAlert,
-        functionName: "get_alerts",
-        args: [],
-      });
-
-      return JSON.parse(raw as string) as AlertsResult;
-    });
-
-    recordSuccess(contractName);
-    return result;
-  } catch (err) {
-    recordFailure(contractName);
-    throw classifyError(err, contractName);
-  }
+  return computeWeatherAlerts(params);
 }
 
 // ─── simulation functions ─────────────────────────────────────────────────────
