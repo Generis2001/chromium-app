@@ -3,7 +3,13 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createClient, chains } from 'genlayer-js'
 
-// GenLayer studionet chain config for wallet_addEthereumChain
+function extractMessage(err: unknown, fallback = 'Connection failed'): string {
+  if (err instanceof Error) return err.message
+  if (err && typeof (err as { message?: unknown }).message === 'string') {
+    return (err as { message: string }).message
+  }
+  return fallback
+}
 const STUDIONET_CONFIG = {
   chainId: '0xF25F', // 61999 in hex
   chainName: 'GenLayer Studionet',
@@ -160,7 +166,7 @@ export function useWallet() {
       setState((s) => ({ ...s, connected: true, address, chainId, onCorrectChain, connecting: false, error: null }))
       void fetchBalance(address)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Connection failed'
+      const msg = extractMessage(err)
       setState((s) => ({ ...s, connecting: false, error: msg }))
     }
   }, [fetchBalance])
@@ -189,7 +195,7 @@ export function useWallet() {
       await syncChain()
       setState((s) => ({ ...s, connecting: false }))
     } catch (err) {
-      setState((s) => ({ ...s, connecting: false, error: err instanceof Error ? err.message : 'Switch failed' }))
+      setState((s) => ({ ...s, connecting: false, error: extractMessage(err, 'Switch failed') }))
     }
   }, [syncChain])
 
