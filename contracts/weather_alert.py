@@ -69,6 +69,13 @@ class WeatherAlertContract(gl.Contract):
         All threshold evaluation is deterministic; LLM expands alert descriptions.
         """
 
+        REQUIRED_FEE = 500_000_000_000_000_000  # 0.5 GEN in wei
+        if int(gl.message.value) < REQUIRED_FEE:
+            raise Exception(
+                f"Insufficient fee: send at least 0.5 GEN ({REQUIRED_FEE} wei). "
+                f"Received {int(gl.message.value)} wei."
+            )
+
         def leader_fn():
             hours = int(lookahead_hours) if lookahead_hours.isdigit() else 24
             hours = min(max(hours, 24), 72)

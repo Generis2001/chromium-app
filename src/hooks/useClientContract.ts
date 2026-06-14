@@ -23,6 +23,14 @@ import type {
 
 const TransactionStatus = { FINALIZED: 'FINALIZED' } as const
 
+// Fees in wei (1 GEN = 1e18 wei)
+const FEES = {
+  weatherAnalysis: BigInt('500000000000000000'),   // 0.5 GEN
+  travelComparison: BigInt('1000000000000000000'),  // 1 GEN
+  activityRisk: BigInt('500000000000000000'),        // 0.5 GEN
+  weatherAlert: BigInt('500000000000000000'),        // 0.5 GEN
+} as const
+
 const CONTRACT_ADDRESSES = {
   weatherAnalysis: (process.env.NEXT_PUBLIC_GENLAYER_WEATHER_ANALYSIS_ADDRESS || '') as `0x${string}`,
   travelComparison: (process.env.NEXT_PUBLIC_GENLAYER_TRAVEL_COMPARISON_ADDRESS || '') as `0x${string}`,
@@ -109,7 +117,7 @@ export function useClientWeatherAnalysis(walletAddress: string | null) {
         address: addresses.weatherAnalysis,
         functionName: 'analyze_weather',
         args: [params.lat, params.lon, params.query, params.location_name],
-        value: BigInt(0),
+        value: FEES.weatherAnalysis,
       }) as string
       setTxHash(hash)
 
@@ -158,7 +166,7 @@ export function useClientTravelComparison(walletAddress: string | null) {
         address: addresses.travelComparison,
         functionName: 'compare_locations',
         args: [JSON.stringify(params.locations), params.purpose, params.travel_date],
-        value: BigInt(0),
+        value: FEES.travelComparison,
       }) as string
       setTxHash(hash)
 
@@ -207,7 +215,7 @@ export function useClientActivityRisk(walletAddress: string | null) {
         address: addresses.activityRisk,
         functionName: 'assess_activity',
         args: [params.lat, params.lon, params.activity, params.location_name, params.target_date, params.duration_hours],
-        value: BigInt(0),
+        value: FEES.activityRisk,
       }) as string
       setTxHash(hash)
 
@@ -256,7 +264,7 @@ export function useClientWeatherAlerts(walletAddress: string | null) {
         address: addresses.weatherAlert,
         functionName: 'check_alerts',
         args: [params.lat, params.lon, params.location_name, params.lookahead_hours],
-        value: BigInt(0),
+        value: FEES.weatherAlert,
       }) as string
       setTxHash(hash)
 

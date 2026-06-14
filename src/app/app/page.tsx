@@ -91,19 +91,22 @@ function App() {
             <TabsList className="w-full max-w-md mx-auto grid grid-cols-4 mb-8 rounded-2xl bg-white/70 dark:bg-[rgba(6,20,40,0.82)] backdrop-blur-sm border border-slate-200/60 dark:border-[rgba(14,165,233,0.2)] p-1">
               {(
                 [
-                  { id: 'weather', label: 'Weather', icon: CloudSun },
-                  { id: 'compare', label: 'Compare', icon: Map },
-                  { id: 'activities', label: 'Activities', icon: Activity },
-                  { id: 'alerts', label: 'Alerts', icon: Bell },
+                  { id: 'weather', label: 'Weather', icon: CloudSun, fee: '0.5 GEN' },
+                  { id: 'compare', label: 'Compare', icon: Map, fee: '1 GEN' },
+                  { id: 'activities', label: 'Activities', icon: Activity, fee: '0.5 GEN' },
+                  { id: 'alerts', label: 'Alerts', icon: Bell, fee: '0.5 GEN' },
                 ] as const
-              ).map(({ id, label, icon: Icon }) => (
+              ).map(({ id, label, icon: Icon, fee }) => (
                 <TabsTrigger
                   key={id}
                   value={id}
-                  className="flex items-center gap-1.5 rounded-xl py-2 text-xs font-medium data-[state=active]:bg-blue-500 dark:data-[state=active]:bg-[rgba(14,165,233,0.18)] dark:data-[state=active]:shadow-[0_0_14px_rgba(14,165,233,0.25)] data-[state=active]:text-white dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-sm text-slate-500 dark:text-[#3d6880] transition-all"
+                  className="flex flex-col items-center gap-0.5 rounded-xl py-2 text-xs font-medium data-[state=active]:bg-blue-500 dark:data-[state=active]:bg-[rgba(14,165,233,0.18)] dark:data-[state=active]:shadow-[0_0_14px_rgba(14,165,233,0.25)] data-[state=active]:text-white dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-sm text-slate-500 dark:text-[#3d6880] transition-all"
                 >
-                  <Icon size={14} />
-                  {label}
+                  <span className="flex items-center gap-1.5">
+                    <Icon size={14} />
+                    {label}
+                  </span>
+                  <span className="text-[9px] font-semibold opacity-60 leading-none">{fee}</span>
                 </TabsTrigger>
               ))}
             </TabsList>

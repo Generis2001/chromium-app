@@ -69,6 +69,12 @@ class WeatherAnalysisContract(gl.Contract):
             query: Natural-language query ("Is it safe to fly to NYC tomorrow?")
             location_name: Human-readable place name ("New York City, NY")
         """
+        REQUIRED_FEE = 500_000_000_000_000_000  # 0.5 GEN in wei
+        if int(gl.message.value) < REQUIRED_FEE:
+            raise Exception(
+                f"Insufficient fee: send at least 0.5 GEN ({REQUIRED_FEE} wei). "
+                f"Received {int(gl.message.value)} wei."
+            )
 
         # ── leader: fetch live data and reason with LLM ──────────────────────
         def leader_fn():

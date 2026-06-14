@@ -50,6 +50,13 @@ class TravelComparisonContract(gl.Contract):
         All weather fetching and scoring happens inside GenLayer consensus.
         """
 
+        REQUIRED_FEE = 1_000_000_000_000_000_000  # 1 GEN in wei
+        if int(gl.message.value) < REQUIRED_FEE:
+            raise Exception(
+                f"Insufficient fee: send at least 1 GEN ({REQUIRED_FEE} wei). "
+                f"Received {int(gl.message.value)} wei."
+            )
+
         def leader_fn():
             locations = json.loads(locations_json)
             if len(locations) > 5:
