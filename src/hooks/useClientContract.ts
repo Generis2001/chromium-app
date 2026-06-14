@@ -128,7 +128,9 @@ export function useClientWeatherAnalysis(walletAddress: string | null) {
         functionName: 'get_analysis',
         args: [],
       })
-      const parsed = JSON.parse(raw as string) as WeatherDecision
+      const rawStr = (raw as string) ?? ''
+      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
+      const parsed = JSON.parse(rawStr) as WeatherDecision
       setResult(parsed)
       return parsed
     } catch (err) {
@@ -177,7 +179,9 @@ export function useClientTravelComparison(walletAddress: string | null) {
         functionName: 'get_comparison',
         args: [],
       })
-      const parsed = JSON.parse(raw as string) as ComparisonResult
+      const rawStr = (raw as string) ?? ''
+      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
+      const parsed = JSON.parse(rawStr) as ComparisonResult
       setResult(parsed)
       return parsed
     } catch (err) {
@@ -226,7 +230,9 @@ export function useClientActivityRisk(walletAddress: string | null) {
         functionName: 'get_assessment',
         args: [],
       })
-      const parsed = JSON.parse(raw as string) as ActivityAssessment
+      const rawStr = (raw as string) ?? ''
+      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
+      const parsed = JSON.parse(rawStr) as ActivityAssessment
       setResult(parsed)
       return parsed
     } catch (err) {
@@ -275,26 +281,23 @@ export function useClientWeatherAlerts(walletAddress: string | null) {
         functionName: 'get_alerts',
         args: [],
       })
-      // get_alerts returns a JSON array string
-      const rawStr = raw as string
-      let alerts: AlertsResult['alerts']
-      try {
-        const maybeArr = JSON.parse(rawStr)
-        alerts = Array.isArray(maybeArr) ? maybeArr : (maybeArr as AlertsResult).alerts ?? []
-      } catch {
-        alerts = []
-      }
+      const rawStr = (raw as string) ?? ''
+      if (!rawStr || rawStr === '""') throw new Error('Contract returned empty state — the transaction may still be processing. Please try again in a moment.')
       const parsedRaw = JSON.parse(rawStr) as AlertsResult | WeatherAlert[]
+      let alerts: AlertsResult['alerts']
       const parsed: AlertsResult = Array.isArray(parsedRaw)
-        ? {
-            alerts,
-            location: params.location_name,
-            lat: params.lat,
-            lon: params.lon,
-            overall_severity: alerts[0]?.severity ?? 'WATCH',
-            alert_count: alerts.length,
-            summary: '',
-          }
+        ? (() => {
+            alerts = parsedRaw as WeatherAlert[]
+            return {
+              alerts,
+              location: params.location_name,
+              lat: params.lat,
+              lon: params.lon,
+              overall_severity: alerts[0]?.severity ?? 'WATCH',
+              alert_count: alerts.length,
+              summary: '',
+            }
+          })()
         : parsedRaw
       setResult(parsed)
       return parsed
