@@ -11,8 +11,8 @@ function extractMessage(err: unknown, fallback = 'Connection failed'): string {
   return fallback
 }
 const STUDIONET_CONFIG = {
-  chainId: '0xF25F', // 61999 in hex
-  chainName: 'GenLayer Studionet',
+  chainId: '0xF22F', // 61999 in hex
+  chainName: 'GenLayer Studio',
   nativeCurrency: { name: 'GEN Token', symbol: 'GEN', decimals: 18 },
   rpcUrls: ['https://studio.genlayer.com/api'],
   blockExplorerUrls: ['https://studio.genlayer.com'],
@@ -28,7 +28,7 @@ export type WalletState = {
   error: string | null
 }
 
-const STUDIONET_CHAIN_ID = '0xf25f' // 61999 lowercase hex
+const STUDIONET_CHAIN_ID = '0xf22f' // 61999 lowercase hex
 
 function normalizeChainId(id: string): string {
   return id.toLowerCase()
