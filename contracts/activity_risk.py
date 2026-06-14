@@ -54,13 +54,6 @@ class ActivityRiskContract(gl.Contract):
         All scoring is deterministic; LLM adds narrative context only.
         """
 
-        REQUIRED_FEE = 500_000_000_000_000_000  # 0.5 GEN in wei
-        if int(gl.message.value) < REQUIRED_FEE:
-            raise Exception(
-                f"Insufficient fee: send at least 0.5 GEN ({REQUIRED_FEE} wei). "
-                f"Received {int(gl.message.value)} wei."
-            )
-
         # ── activity-specific scoring matrices ──────────────────────────────
         ACTIVITY_CONFIGS = {
             "farming": {
