@@ -266,8 +266,20 @@ Rules:
 - be concise and precise; no markdown, no prose outside JSON
 """
 
-            result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(_extract_json(result_str))
+            try:
+                result_str = gl.nondet.exec_prompt(prompt)
+                result = json.loads(_extract_json(result_str))
+            except Exception:
+                decision = "GO" if risk_level == "LOW" else ("CAUTION" if risk_level == "MEDIUM" else "AVOID")
+                result = {
+                    "decision": decision,
+                    "confidence": 70,
+                    "reasoning": f"{condition.replace('_', ' ').title()} conditions at {location_name}. Comfort score {comfort_score}/100.",
+                    "recommendation": f"Conditions are {decision.lower()} based on current weather metrics.",
+                    "alternative_days": [],
+                    "key_factors": [f"Risk level: {risk_level}", f"Condition: {condition}", f"Comfort: {comfort_score}/100"],
+                    "alerts": [],
+                }
 
             # Enforce pre-computed deterministic fields
             result["risk_level"] = risk_level

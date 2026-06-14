@@ -289,8 +289,30 @@ For each alert, expand it into a full alert object. Respond ONLY with valid JSON
 CRITICAL: Do not change type, severity, peak_value, or affected_hours from the raw data.
 """
 
-            result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(_extract_json(result_str))
+            try:
+                result_str = gl.nondet.exec_prompt(prompt)
+                result = json.loads(_extract_json(result_str))
+            except Exception:
+                result = {
+                    "location": location_name,
+                    "alert_count": len(raw_alerts),
+                    "overall_severity": overall_severity,
+                    "summary": f"{len(raw_alerts)} weather alert(s) detected for {location_name} in the next {hours} hours.",
+                    "alerts": [
+                        {
+                            "id": f"{a['type']}_{i}",
+                            "type": a["type"],
+                            "severity": a["severity"],
+                            "title": a["type"].replace("_", " ").title(),
+                            "description": f"{a['type'].replace('_', ' ').title()} conditions detected.",
+                            "peak_value": a.get("peak_value", 0),
+                            "affected_hours": a.get("affected_hours", []),
+                            "safety_actions": ["Monitor local weather updates", "Take appropriate precautions", "Follow official guidance"],
+                            "expires_hours": 24,
+                        }
+                        for i, a in enumerate(raw_alerts)
+                    ],
+                }
 
             # Enforce deterministic fields
             result["location"] = location_name

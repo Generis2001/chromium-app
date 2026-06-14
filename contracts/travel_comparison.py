@@ -264,8 +264,25 @@ The ranked_locations list must preserve the pre-computed score ordering exactly.
 Each entry: {{"rank": int, "name": str, "overall_score": float, "reason": str, "condition": str}}
 """
 
-            result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(_extract_json(result_str))
+            try:
+                result_str = gl.nondet.exec_prompt(prompt)
+                result = json.loads(_extract_json(result_str))
+            except Exception:
+                result = {
+                    "best_location": best["name"],
+                    "reasoning": f"{best['name']} ranks highest with a score of {best['overall_score']:.1f} for {purpose} travel on {travel_date}.",
+                    "ranked_locations": [
+                        {
+                            "rank": i + 1,
+                            "name": c["name"],
+                            "overall_score": c["overall_score"],
+                            "reason": f"Score {c['overall_score']:.1f} — {c['condition'].replace('_', ' ')} conditions.",
+                            "condition": c["condition"],
+                        }
+                        for i, c in enumerate(city_data)
+                    ],
+                    "purpose_note": f"Weather ranked for {purpose} travel.",
+                }
 
             # Always override with deterministic values
             result["best_location"] = best["name"]

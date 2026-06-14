@@ -298,8 +298,21 @@ Respond ONLY with a valid JSON object:
 risk_level and risk_score MUST match pre-computed values exactly.
 """
 
-            result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(_extract_json(result_str))
+            try:
+                result_str = gl.nondet.exec_prompt(prompt)
+                result = json.loads(_extract_json(result_str))
+            except Exception:
+                result = {
+                    "activity": activity,
+                    "suitability": suitability,
+                    "risk_level": risk_level,
+                    "risk_score": risk_score,
+                    "recommendation": f"Conditions rated {suitability.lower()} for {activity}. Risk score: {risk_score}/100.",
+                    "key_concerns": [f"Risk level: {risk_level}"],
+                    "safety_tips": ["Monitor local weather conditions before proceeding"],
+                    "best_time_window": "Check hourly forecast for optimal window",
+                    "gear_suggestions": ["Dress appropriately for current conditions"],
+                }
 
             # Enforce deterministic fields
             result["risk_level"] = risk_level
