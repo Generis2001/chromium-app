@@ -113,6 +113,16 @@
 }
 
 .dark {
+  /* ─── Chromium dark design tokens — deep navy / teal ─── */
+  --color-bg: #06111e;
+  --color-surface: rgba(8, 24, 44, 0.97);
+  --color-primary-brand: #0ea5e9;
+  --color-text-primary: #dff0ff;
+  --color-text-secondary: #7ab8cc;
+  --color-text-muted: #3d6578;
+  --color-border-subtle: rgba(14, 165, 233, 0.13);
+  --shadow-card: 0 8px 40px rgba(0, 0, 0, 0.7);
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -282,4 +292,151 @@
   box-shadow: var(--shadow-card);
   border: 1px solid rgba(148, 163, 184, 0.12);
   padding: 24px;
+}
+
+/* ─── Dark mode surface overrides — deep navy / teal palette ─── */
+
+html.dark body {
+  background-color: #06111e;
+}
+
+/* Cards & panels — dark glass with teal accent glow */
+html.dark .bg-white,
+html.dark .card {
+  background: linear-gradient(135deg, rgba(6, 20, 40, 0.97) 0%, rgba(4, 15, 33, 0.95) 100%) !important;
+  border-color: rgba(14, 165, 233, 0.14) !important;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(14, 165, 233, 0.06) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+/* Tab bar / semi-transparent surfaces */
+html.dark .bg-white\/70 {
+  background-color: rgba(6, 20, 40, 0.82) !important;
+}
+
+/* Nested surface tiers */
+html.dark .bg-slate-50 { background-color: rgba(5, 14, 30, 0.85) !important; }
+html.dark .bg-slate-100 { background-color: rgba(5, 14, 30, 0.65) !important; }
+html.dark .bg-slate-200 { background-color: rgba(8, 20, 40, 0.8) !important; }
+
+/* Borders — teal-tinted */
+html.dark .border-slate-100 { border-color: rgba(14, 165, 233, 0.12) !important; }
+html.dark .border-slate-200 { border-color: rgba(14, 165, 233, 0.16) !important; }
+html.dark .border-slate-200\/60 { border-color: rgba(14, 165, 233, 0.2) !important; }
+
+/* Text — blue-tinted spectrum */
+html.dark .text-slate-800,
+html.dark .text-slate-900 { color: #dff0ff !important; }
+html.dark .text-slate-700 { color: #b8d8f0 !important; }
+html.dark .text-slate-600 { color: #8bbad4 !important; }
+html.dark .text-slate-500 { color: #5d8fa4 !important; }
+html.dark .text-slate-400 { color: #3d6880 !important; }
+html.dark .text-slate-300 { color: #2a4f62 !important; }
+
+/* Card shadow depth */
+html.dark .shadow-\[0_8px_32px_rgba\(0\,0\,0\,0\.08\)\] {
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(14, 165, 233, 0.06) !important;
+}
+
+/* Glass utilities */
+html.dark .glass {
+  background: rgba(6, 20, 40, 0.78) !important;
+  border-color: rgba(14, 165, 233, 0.14) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+/* ── Colored status panels ── */
+
+html.dark .bg-blue-50 { background-color: rgba(14, 165, 233, 0.07) !important; }
+html.dark .text-blue-700 { color: #7dd3fc !important; }
+html.dark .text-blue-800 { color: #e0f2fe !important; }
+html.dark .border-blue-400 { border-color: rgba(14, 165, 233, 0.38) !important; }
+html.dark .border-blue-300 { border-color: rgba(14, 165, 233, 0.26) !important; }
+
+html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.07) !important; }
+html.dark .text-emerald-700 { color: #6ee7b0 !important; }
+html.dark .text-emerald-800 { color: #d1fae5 !important; }
+html.dark .text-emerald-600 { color: #34d399 !important; }
+html.dark .text-emerald-500 { color: #10b981 !important; }
+html.dark .border-emerald-200 { border-color: rgba(16, 185, 129, 0.24) !important; }
+html.dark .border-emerald-100 { border-color: rgba(16, 185, 129, 0.14) !important; }
+
+html.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.07) !important; }
+html.dark .text-amber-700 { color: #fbbf24 !important; }
+html.dark .text-amber-600 { color: #f59e0b !important; }
+html.dark .border-amber-200 { border-color: rgba(245, 158, 11, 0.24) !important; }
+html.dark .border-amber-100 { border-color: rgba(245, 158, 11, 0.14) !important; }
+html.dark .bg-amber-400 { background-color: rgba(245, 158, 11, 0.85) !important; }
+
+html.dark .bg-orange-50 { background-color: rgba(249, 115, 22, 0.07) !important; }
+html.dark .text-orange-700 { color: #fb923c !important; }
+html.dark .border-orange-200 { border-color: rgba(249, 115, 22, 0.24) !important; }
+html.dark .bg-orange-400 { background-color: rgba(249, 115, 22, 0.85) !important; }
+
+html.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.07) !important; }
+html.dark .text-red-700 { color: #fc8181 !important; }
+html.dark .text-red-600 { color: #f87171 !important; }
+html.dark .border-red-200 { border-color: rgba(239, 68, 68, 0.24) !important; }
+html.dark .border-red-100 { border-color: rgba(239, 68, 68, 0.14) !important; }
+html.dark .bg-red-500 { background-color: rgba(220, 38, 38, 0.9) !important; }
+
+/* ── Form inputs ── */
+html.dark input[type="text"],
+html.dark input[type="date"],
+html.dark input[type="number"] {
+  background-color: rgba(4, 13, 28, 0.92) !important;
+  border-color: rgba(14, 165, 233, 0.17) !important;
+  color: #dff0ff !important;
+  color-scheme: dark;
+}
+html.dark select {
+  background-color: rgba(4, 13, 28, 0.92) !important;
+  border-color: rgba(14, 165, 233, 0.17) !important;
+  color: #dff0ff !important;
+  color-scheme: dark;
+}
+html.dark input::placeholder { color: #3d6880 !important; }
+
+/* ── Decision badge dark variants ── */
+html.dark .decision-go {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.07));
+  border-color: rgba(52, 211, 153, 0.28);
+  color: #6ee7b0;
+}
+html.dark .decision-caution {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.07));
+  border-color: rgba(251, 191, 36, 0.28);
+  color: #fbbf24;
+}
+html.dark .decision-avoid {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.07));
+  border-color: rgba(248, 113, 113, 0.28);
+  color: #fc8181;
+}
+
+/* ── Risk badge dark variants ── */
+html.dark .risk-low {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.22);
+}
+html.dark .risk-medium {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.22);
+}
+html.dark .risk-high {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.22);
+}
+
+/* ── Teal scrollbar ── */
+html.dark * {
+  scrollbar-color: rgba(14, 165, 233, 0.4) rgba(4, 13, 28, 0.6);
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(14, 165, 233, 0.4);
 }

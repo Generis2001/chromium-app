@@ -7,6 +7,7 @@ import type { GeocodingResult } from "@/types";
 
 const OPEN_METEO_GEO_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
 
 export async function geocodeLocation(
   query: string,
@@ -51,7 +52,7 @@ export async function reverseGeocode(
   lat: string,
   lon: string,
 ): Promise<GeocodingResult | null> {
-  const url = `${NOMINATIM_URL}?lat=${lat}&lon=${lon}&format=json&limit=1&addressdetails=1`;
+  const url = `${NOMINATIM_REVERSE_URL}?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
 
   try {
     const res = await fetch(url, {
@@ -61,22 +62,23 @@ export async function reverseGeocode(
 
     if (!res.ok) return null;
 
-    const data = await res.json();
-    if (!data || data.length === 0) return null;
+    const data = (await res.json()) as Record<string, unknown>;
 
-    const r = Array.isArray(data) ? data[0] : data;
-    const addr = r.address || {};
+    // Nominatim returns { error: "..." } when coordinates are invalid
+    if (!data || "error" in data) return null;
+
+    const addr = (data.address as Record<string, string>) ?? {};
     const city =
-      addr.city || addr.town || addr.village || addr.municipality || r.name;
-    const state = addr.state || addr.county;
-    const country = addr.country || "";
-    const country_code = addr.country_code || "";
+      addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? (data.name as string) ?? "";
+    const state = addr.state ?? addr.county ?? "";
+    const country = addr.country ?? "";
+    const country_code = (addr.country_code ?? "").toLowerCase();
 
     return {
       name: city,
       display_name: [city, state, country].filter(Boolean).join(", "),
-      lat: String(r.lat),
-      lon: String(r.lon),
+      lat: String(data.lat),
+      lon: String(data.lon),
       country,
       country_code,
       state,

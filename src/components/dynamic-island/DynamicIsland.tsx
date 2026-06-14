@@ -227,7 +227,7 @@ function ComparisonContent({
       <div className="flex flex-col items-start flex-1 min-w-0">
         <span className="text-[10px] text-white/50 uppercase tracking-wider">Best</span>
         <span className="text-xs font-semibold text-white truncate w-full text-left">
-          {data.best_location ? truncate(data.best_location, 18) : '—'}
+          {data.best_location ? truncate(data.best_location, 18) : '-'}
         </span>
       </div>
       {data.comparison_count !== undefined && (

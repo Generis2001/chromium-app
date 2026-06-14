@@ -47,9 +47,9 @@ function checkRateLimit(ip: string): { allowed: boolean; remaining: number; rese
   return { allowed: true, remaining: MAX_REQUESTS - entry.count, resetAt: entry.resetAt };
 }
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// ─── Proxy ────────────────────────────────────────────────────────────────────
 
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
 
   // Only rate-limit API routes

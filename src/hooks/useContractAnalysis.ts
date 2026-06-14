@@ -16,6 +16,18 @@ import type {
   ApiResponse,
 } from '@/types'
 
+const TIMEOUT_MSG =
+  'GenLayer contract timed out. Studionet transactions take 2-5 minutes. Please try again.'
+
+async function safeJson<T>(res: Response): Promise<ApiResponse<T>> {
+  const ct = res.headers.get('content-type') ?? ''
+  if (!ct.includes('application/json')) {
+    // Vercel gateway timeout or similar non-JSON error
+    throw new Error(TIMEOUT_MSG)
+  }
+  return res.json() as Promise<ApiResponse<T>>
+}
+
 // ─── useContractAnalysis ─────────────────────────────────────────────────────
 
 type AnalysisState = {
@@ -51,7 +63,7 @@ export function useContractAnalysis(): AnalysisState {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         })
-        const json = (await res.json()) as ApiResponse<WeatherDecision>
+        const json = await safeJson<WeatherDecision>(res)
         if (json.ok) {
           setResult(json.data)
           return json.data
@@ -66,7 +78,7 @@ export function useContractAnalysis(): AnalysisState {
         setIsAnalyzing(false)
       }
     },
-    []
+    [],
   )
 
   const clearResult = useCallback(() => {
@@ -100,7 +112,7 @@ export function useActivityRisk(): {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         })
-        const json = (await res.json()) as ApiResponse<ActivityAssessment>
+        const json = await safeJson<ActivityAssessment>(res)
         if (json.ok) {
           setResult(json.data)
           return json.data
@@ -115,7 +127,7 @@ export function useActivityRisk(): {
         setIsLoading(false)
       }
     },
-    []
+    [],
   )
 
   const clearResult = useCallback(() => {
@@ -149,7 +161,7 @@ export function useTravelComparison(): {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         })
-        const json = (await res.json()) as ApiResponse<ComparisonResult>
+        const json = await safeJson<ComparisonResult>(res)
         if (json.ok) {
           setResult(json.data)
           return json.data
@@ -164,7 +176,7 @@ export function useTravelComparison(): {
         setIsLoading(false)
       }
     },
-    []
+    [],
   )
 
   const clearResult = useCallback(() => {
@@ -198,7 +210,7 @@ export function useWeatherAlerts(): {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         })
-        const json = (await res.json()) as ApiResponse<AlertsResult>
+        const json = await safeJson<AlertsResult>(res)
         if (json.ok) {
           setResult(json.data)
           return json.data
@@ -213,7 +225,7 @@ export function useWeatherAlerts(): {
         setIsLoading(false)
       }
     },
-    []
+    [],
   )
 
   const clearResult = useCallback(() => {
@@ -247,7 +259,7 @@ export function useActivityComparison(): {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         })
-        const json = (await res.json()) as ApiResponse<ActivityComparisonResult>
+        const json = await safeJson<ActivityComparisonResult>(res)
         if (json.ok) {
           setResult(json.data)
           return json.data
@@ -262,7 +274,7 @@ export function useActivityComparison(): {
         setIsLoading(false)
       }
     },
-    []
+    [],
   )
 
   const clearResult = useCallback(() => {
@@ -296,7 +308,7 @@ export function useBestDateFinder(): {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         })
-        const json = (await res.json()) as ApiResponse<BestDateResult>
+        const json = await safeJson<BestDateResult>(res)
         if (json.ok) {
           setResult(json.data)
           return json.data
@@ -311,7 +323,7 @@ export function useBestDateFinder(): {
         setIsLoading(false)
       }
     },
-    []
+    [],
   )
 
   const clearResult = useCallback(() => {

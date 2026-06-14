@@ -19,7 +19,7 @@ import {
   classifyError,
 } from "./errors";
 
-const { testnetBradbury } = chains;
+const { studionet } = chains;
 
 // ─── contract addresses ──────────────────────────────────────────────────────
 const CONTRACT_ADDRESSES = {
@@ -158,7 +158,7 @@ function getClient() {
   const account = createAccount(privateKey);
 
   return createClient({
-    chain: testnetBradbury,
+    chain: studionet,
     account,
   });
 }
@@ -167,7 +167,7 @@ function getClient() {
 async function waitForFinality(
   client: ReturnType<typeof getClient>,
   txHash: string,
-  timeoutMs = 120_000,
+  timeoutMs = 250_000,
 ): Promise<void> {
   await client.waitForTransactionReceipt({
     hash: txHash as Parameters<typeof client.waitForTransactionReceipt>[0]["hash"],

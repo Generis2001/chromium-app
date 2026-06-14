@@ -20,6 +20,19 @@ Validators confirm alert set within ±1 alert count and all EMERGENCY alerts mat
 """
 from genlayer import *
 import json
+import re
+
+
+def _extract_json(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text.strip())
+    text = text.strip()
+    start = text.find('{')
+    end = text.rfind('}') + 1
+    if start >= 0 and end > start:
+        return text[start:end]
+    return text
 
 
 class WeatherAlertContract(gl.Contract):
@@ -76,7 +89,7 @@ class WeatherAlertContract(gl.Contract):
                 f"&temperature_unit=celsius&precipitation_unit=mm&timezone=auto"
             )
 
-            raw = gl.nondet.web.get(url)
+            raw = gl.nondet.web.get(url).body
             data = json.loads(raw)
 
             current = data.get("current", {})
@@ -277,7 +290,7 @@ CRITICAL: Do not change type, severity, peak_value, or affected_hours from the r
 """
 
             result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(result_str)
+            result = json.loads(_extract_json(result_str))
 
             # Enforce deterministic fields
             result["location"] = location_name

@@ -53,7 +53,7 @@ export function WeatherDecisionEngine({ location, className }: WeatherDecisionEn
     if (data) {
       island.setState('weather', {
         location: data.location,
-        temp: 0, // filled by current conditions
+        temp: 0,
         condition: data.condition_class,
         risk_level: data.risk_level,
         decision: data.decision,

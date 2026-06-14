@@ -47,7 +47,7 @@ export class ContractValidationError extends GenLayerError {
 export class CircuitOpenError extends GenLayerError {
   constructor(contractName: string) {
     super(
-      `Circuit breaker OPEN for ${contractName} — too many recent failures`,
+      `Circuit breaker OPEN for ${contractName}: too many recent failures`,
       contractName,
     );
     this.name = "CircuitOpenError";

@@ -11,6 +11,19 @@ Validators check risk_score within ±10 points and that risk_level matches exact
 """
 from genlayer import *
 import json
+import re
+
+
+def _extract_json(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text.strip())
+    text = text.strip()
+    start = text.find('{')
+    end = text.rfind('}') + 1
+    if start >= 0 and end > start:
+        return text[start:end]
+    return text
 
 
 class ActivityRiskContract(gl.Contract):
@@ -153,7 +166,7 @@ class ActivityRiskContract(gl.Contract):
                 f"&precipitation_unit=mm&timezone=auto"
             )
 
-            raw = gl.nondet.web.get(url)
+            raw = gl.nondet.web.get(url).body
             data = json.loads(raw)
 
             current = data.get("current", {})
@@ -286,7 +299,7 @@ risk_level and risk_score MUST match pre-computed values exactly.
 """
 
             result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(result_str)
+            result = json.loads(_extract_json(result_str))
 
             # Enforce deterministic fields
             result["risk_level"] = risk_level

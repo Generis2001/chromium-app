@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createAccount, chains } from "genlayer-js";
 
-const { testnetBradbury } = chains;
+const { studionet } = chains;
 
 type ContractStatus = "healthy" | "degraded" | "unreachable";
 type OverallStatus = "healthy" | "degraded" | "unhealthy";
@@ -67,7 +67,7 @@ function getReadClient() {
   const privateKey = (process.env.GENLAYER_PRIVATE_KEY ||
     "0x0000000000000000000000000000000000000000000000000000000000000001") as `0x${string}`;
   const account = createAccount(privateKey);
-  return createClient({ chain: testnetBradbury, account });
+  return createClient({ chain: studionet, account });
 }
 
 async function checkContract(config: {
@@ -162,6 +162,6 @@ export async function GET(): Promise<NextResponse<HealthResponse>> {
     timestamp,
     contracts,
     overall,
-    network: "testnetBradbury",
+    network: "studionet",
   });
 }

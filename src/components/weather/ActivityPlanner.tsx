@@ -344,7 +344,7 @@ export function ActivityPlanner({ location, className }: ActivityPlannerProps) {
             <div className="bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-100">
               <p className="text-xs font-semibold text-emerald-700 mb-1">Best Day</p>
               <p className="text-sm text-emerald-800 font-medium">
-                {bestDateResult.best_day_name} — {bestDateResult.best_date}
+                {bestDateResult.best_day_name}: {bestDateResult.best_date}
               </p>
               <p className="text-xs text-emerald-600 mt-1">{bestDateResult.reasoning}</p>
             </div>

@@ -8,6 +8,19 @@ all network calls.  The scoring is deterministic; only reasoning uses the LLM.
 """
 from genlayer import *
 import json
+import re
+
+
+def _extract_json(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text.strip())
+    text = text.strip()
+    start = text.find('{')
+    end = text.rfind('}') + 1
+    if start >= 0 and end > start:
+        return text[start:end]
+    return text
 
 
 class TravelComparisonContract(gl.Contract):
@@ -66,7 +79,7 @@ class TravelComparisonContract(gl.Contract):
                     f"&forecast_days=7&wind_speed_unit=kmh&temperature_unit=celsius"
                     f"&precipitation_unit=mm&timezone=auto"
                 )
-                raw = gl.nondet.web.get(url)
+                raw = gl.nondet.web.get(url).body
                 data = json.loads(raw)
 
                 current = data.get("current", {})
@@ -252,7 +265,7 @@ Each entry: {{"rank": int, "name": str, "overall_score": float, "reason": str, "
 """
 
             result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(result_str)
+            result = json.loads(_extract_json(result_str))
 
             # Always override with deterministic values
             result["best_location"] = best["name"]

@@ -1,4 +1,4 @@
-export const maxDuration = 150;
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";

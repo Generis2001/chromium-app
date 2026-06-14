@@ -140,14 +140,14 @@ async function deployOne(client, account, contract) {
 async function main() {
   banner('Chromium — GenLayer Contract Deployment');
 
-  console.log(`Network : testnetBradbury`);
-  console.log(`RPC     : ${chains.testnetBradbury.rpcUrls?.default?.http?.[0] ?? '(default)'}\n`);
+  console.log(`Network : studionet`);
+  console.log(`RPC     : ${chains.studionet.rpcUrls?.default?.http?.[0] ?? '(default)'}\n`);
 
   const account = createAccount(PRIVATE_KEY);
   console.log(`Deployer: ${account.address}\n`);
 
   const client = createClient({
-    chain: chains.testnetBradbury,
+    chain: chains.studionet,
     account,
   });
 
@@ -173,7 +173,7 @@ async function main() {
   // ─── Write .deployed.json ───────────────────────────────────────────────────
   const deployedJson = {
     deployedAt: new Date().toISOString(),
-    network: 'testnetBradbury',
+    network: 'studionet',
     contracts: {
       weatherAnalysis: deployed.weatherAnalysis,
       travelComparison: deployed.travelComparison,

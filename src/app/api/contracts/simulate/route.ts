@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAccount, chains } from "genlayer-js";
 
-const { testnetBradbury } = chains;
+const { studionet } = chains;
 
 type ContractName =
   | "weatherAnalysis"
@@ -75,7 +75,7 @@ function getSimulateClient() {
   const privateKey = process.env.GENLAYER_PRIVATE_KEY as `0x${string}` | undefined;
   if (!privateKey) throw new Error("GENLAYER_PRIVATE_KEY is not set");
   const account = createAccount(privateKey);
-  return createClient({ chain: testnetBradbury, account });
+  return createClient({ chain: studionet, account });
 }
 
 export async function POST(

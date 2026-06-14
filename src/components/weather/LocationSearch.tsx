@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, MapPin } from 'lucide-react'
+import { Search, MapPin, LocateFixed, Loader2 } from 'lucide-react'
 import { useGeocoding } from '@/hooks/useGeocoding'
 import type { GeocodingResult } from '@/types'
 
@@ -32,6 +32,8 @@ export function LocationSearch({
 
   const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const [isLocating, setIsLocating] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -70,6 +72,46 @@ export function LocationSearch({
     },
     [onSelect, setQuery, clearResults]
   )
+
+  const handleUseMyLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation is not supported by your browser.')
+      return
+    }
+    setIsLocating(true)
+    setGeoError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `/api/geocode/reverse?lat=${latitude}&lon=${longitude}`
+          )
+          const json = (await res.json()) as { ok: boolean; data?: GeocodingResult; error?: string }
+          if (json.ok && json.data) {
+            onSelect(json.data)
+          } else {
+            setGeoError(json.error ?? 'Could not identify your location.')
+          }
+        } catch {
+          setGeoError('Failed to look up your location.')
+        } finally {
+          setIsLocating(false)
+        }
+      },
+      (err) => {
+        setIsLocating(false)
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError('Location access denied. Please allow it in your browser settings.')
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setGeoError('Location unavailable. Try searching manually.')
+        } else {
+          setGeoError('Could not determine your location.')
+        }
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    )
+  }, [onSelect])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -120,20 +162,42 @@ export function LocationSearch({
           ref={inputRef}
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            if (geoError) setGeoError(null)
+          }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
             if (query.length >= 2) setIsOpen(true)
           }}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="w-full rounded-2xl bg-white border border-slate-200 px-4 py-3 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          className="w-full rounded-2xl bg-white dark:bg-[rgba(4,13,28,0.92)] border border-slate-200 dark:border-[rgba(14,165,233,0.18)] px-4 py-3 pl-10 pr-11 text-sm text-slate-900 dark:text-[#dff0ff] placeholder:text-slate-400 dark:placeholder:text-[#3d6880] focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:focus:ring-[rgba(14,165,233,0.2)] focus:border-blue-400 dark:focus:border-[rgba(14,165,233,0.4)]"
           aria-label="Search for a location"
           aria-autocomplete="list"
           aria-expanded={showDropdown || showEmpty}
           role="combobox"
         />
+        <button
+          type="button"
+          onClick={handleUseMyLocation}
+          disabled={isLocating}
+          title="Use my current location"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 dark:text-[#3d6880] hover:text-blue-500 dark:hover:text-cyan-400 hover:bg-blue-50 dark:hover:bg-[rgba(14,165,233,0.1)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Use my current location"
+        >
+          {isLocating ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <LocateFixed size={16} />
+          )}
+        </button>
       </div>
+
+      {/* Geo error */}
+      {geoError && (
+        <p className="mt-1.5 text-xs text-red-500 px-1">{geoError}</p>
+      )}
 
       {/* Dropdown */}
       <AnimatePresence>
@@ -144,7 +208,7 @@ export function LocationSearch({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full mt-2 left-0 right-0 rounded-2xl glass border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden z-50"
+            className="absolute top-full mt-2 left-0 right-0 rounded-2xl glass dark:bg-[rgba(6,20,40,0.96)] border border-white/60 dark:border-[rgba(14,165,233,0.15)] shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.7)] overflow-hidden z-50"
             role="listbox"
           >
             {/* Loading skeletons */}

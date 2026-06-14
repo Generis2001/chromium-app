@@ -6,7 +6,7 @@
  * Body: { lat, lon, location_name, lookahead_hours }
  */
 
-export const maxDuration = 150;
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
@@ -19,7 +19,7 @@ const BodySchema = z.object({
   lat: z.string().regex(/^-?\d+(\.\d+)?$/),
   lon: z.string().regex(/^-?\d+(\.\d+)?$/),
   location_name: z.string().min(1).max(200),
-  lookahead_hours: z.enum(["24", "48", "72"]).default("24"),
+  lookahead_hours: z.enum(["6", "12", "24", "48", "72"]).default("24"),
 });
 
 export async function POST(

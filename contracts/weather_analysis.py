@@ -10,6 +10,21 @@ within defined equivalence bounds.
 """
 from genlayer import *
 import json
+import re
+
+
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences then find the outermost JSON object."""
+    text = text.strip()
+    # Remove ```json ... ``` or ``` ... ``` wrappers
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text.strip())
+    text = text.strip()
+    start = text.find('{')
+    end = text.rfind('}') + 1
+    if start >= 0 and end > start:
+        return text[start:end]
+    return text
 
 
 class WeatherAnalysisContract(gl.Contract):
@@ -75,7 +90,7 @@ class WeatherAnalysisContract(gl.Contract):
                 f"&precipitation_unit=mm&timezone=auto"
             )
 
-            raw = gl.nondet.web.get(url)
+            raw = gl.nondet.web.get(url).body
             weather = json.loads(raw)
 
             # Extract current conditions compactly for the prompt
@@ -253,7 +268,7 @@ Rules:
 """
 
             result_str = gl.nondet.exec_prompt(prompt)
-            result = json.loads(result_str)
+            result = json.loads(_extract_json(result_str))
 
             # Enforce pre-computed deterministic fields
             result["risk_level"] = risk_level
