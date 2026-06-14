@@ -68,17 +68,17 @@ function getWalletClient(address: string) {
   })
 }
 
-// Get result via server-side simulation — same path that worked before payments
-async function simulateContract<T>(contract: string, params: Record<string, string>): Promise<T> {
-  const res = await fetch('/api/contracts/simulate', {
+// Fetch result from the server-side API routes — the path that worked before payments
+async function fetchResult<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contract, params }),
+    body: JSON.stringify(body),
   })
-  const json = await res.json() as { ok: boolean; result?: T; error?: string }
-  if (!json.ok) throw new Error(json.error ?? 'Simulation failed')
-  if (json.result == null) throw new Error('Simulation returned no result')
-  return json.result
+  const json = await res.json() as { ok: boolean; data?: T; error?: string }
+  if (!json.ok) throw new Error(json.error ?? `Request to ${endpoint} failed`)
+  if (json.data == null) throw new Error('No result returned from server')
+  return json.data
 }
 
 // ─── Weather Analysis ─────────────────────────────────────────────────────────
@@ -113,8 +113,8 @@ export function useClientWeatherAnalysis(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      // 2. Get result via server-side simulation (immediate, reliable)
-      const parsed = await simulateContract<WeatherDecision>('weatherAnalysis', {
+      // 2. Get result from the server-side route that was working before payments
+      const parsed = await fetchResult<WeatherDecision>('/api/weather/analyze', {
         lat: params.lat,
         lon: params.lon,
         query: params.query,
@@ -163,9 +163,9 @@ export function useClientTravelComparison(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      // 2. Get result via server-side simulation (immediate, reliable)
-      const parsed = await simulateContract<ComparisonResult>('travelComparison', {
-        locations: JSON.stringify(params.locations),
+      // 2. Get result from the server-side route that was working before payments
+      const parsed = await fetchResult<ComparisonResult>('/api/compare', {
+        locations: params.locations,
         purpose: params.purpose,
         travel_date: params.travel_date,
       })
@@ -212,8 +212,8 @@ export function useClientActivityRisk(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      // 2. Get result via server-side simulation (immediate, reliable)
-      const parsed = await simulateContract<ActivityAssessment>('activityRisk', {
+      // 2. Get result from the server-side route that was working before payments
+      const parsed = await fetchResult<ActivityAssessment>('/api/activity', {
         lat: params.lat,
         lon: params.lon,
         activity: params.activity,
@@ -264,8 +264,8 @@ export function useClientWeatherAlerts(walletAddress: string | null) {
       }) as string
       setTxHash(hash)
 
-      // 2. Get result via server-side simulation (immediate, reliable)
-      const parsedRaw = await simulateContract<AlertsResult | WeatherAlert[]>('weatherAlert', {
+      // 2. Get result from the server-side route that was working before payments
+      const parsedRaw = await fetchResult<AlertsResult | WeatherAlert[]>('/api/alerts', {
         lat: params.lat,
         lon: params.lon,
         location_name: params.location_name,
