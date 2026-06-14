@@ -60,41 +60,34 @@ export async function POST(
       // proceed
     }
 
-    const assessments = await Promise.allSettled(
-      locations.map((loc) =>
-        assessActivityWithCache({
+    const partial_failures: string[] = [];
+    const scored: ActivityCityScore[] = [];
+
+    for (const loc of locations) {
+      try {
+        const a = await assessActivityWithCache({
           lat: loc.lat,
           lon: loc.lon,
           activity,
           location_name: loc.name,
           target_date,
           duration_hours: "4",
-        }),
-      ),
-    );
-
-    const partial_failures: string[] = [];
-    const scored: ActivityCityScore[] = [];
-
-    assessments.forEach((outcome, i) => {
-      const locName = locations[i].name;
-      if (outcome.status === "rejected") {
-        partial_failures.push(locName);
-        return;
+        });
+        scored.push({
+          name: loc.name,
+          rank: 0,
+          overall_score: 100 - a.risk_score,
+          suitability: a.suitability,
+          risk_level: a.risk_level,
+          risk_score: a.risk_score,
+          key_concerns: a.key_concerns,
+          recommendation: a.recommendation,
+          best_time_window: a.best_time_window,
+        });
+      } catch {
+        partial_failures.push(loc.name);
       }
-      const a = outcome.value;
-      scored.push({
-        name: locName,
-        rank: 0,
-        overall_score: 100 - a.risk_score,
-        suitability: a.suitability,
-        risk_level: a.risk_level,
-        risk_score: a.risk_score,
-        key_concerns: a.key_concerns,
-        recommendation: a.recommendation,
-        best_time_window: a.best_time_window,
-      });
-    });
+    }
 
     if (scored.length === 0) {
       return NextResponse.json(
