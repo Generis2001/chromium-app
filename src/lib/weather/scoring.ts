@@ -157,6 +157,7 @@ export async function computeWeatherAnalysis(params: {
     lat,
     lon,
     query,
+    temp_c: Math.round(temp),
   };
 }
 

@@ -32,6 +32,7 @@ export type WeatherDecision = {
   lat: string;
   lon: string;
   query: string;
+  temp_c: number;
 };
 
 // ─── Travel comparison (TravelComparisonContract) ────────────────────────────

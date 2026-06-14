@@ -54,7 +54,7 @@ export function WeatherDecisionEngine({ location, walletAddress, className }: We
     if (data) {
       island.setState('weather', {
         location: data.location,
-        temp: 0,
+        temp: data.temp_c,
         condition: data.condition_class,
         risk_level: data.risk_level,
         decision: data.decision,
