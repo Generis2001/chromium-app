@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Loader2 } from 'lucide-react'
-import { useContractAnalysis } from '@/hooks/useContractAnalysis'
+import { useClientWeatherAnalysis } from '@/hooks/useClientContract'
 import { useIsland } from '@/components/dynamic-island'
 import { DecisionBadge } from '@/components/ui/DecisionBadge'
 import { RiskBadge } from '@/components/ui/RiskBadge'
@@ -16,6 +16,7 @@ import type { GeocodingResult } from '@/types'
 
 type WeatherDecisionEngineProps = {
   location: GeocodingResult | null
+  walletAddress: string | null
   className?: string
 }
 
@@ -36,10 +37,10 @@ function getAlternativeDayName(index: number): string {
   return DAY_NAMES[d.getDay()]
 }
 
-export function WeatherDecisionEngine({ location, className }: WeatherDecisionEngineProps) {
+export function WeatherDecisionEngine({ location, walletAddress, className }: WeatherDecisionEngineProps) {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const { result, isAnalyzing, error, analyze } = useContractAnalysis()
+  const { result, isAnalyzing, txHash, error, analyze } = useClientWeatherAnalysis(walletAddress)
   const island = useIsland()
 
   const handleAnalyze = async () => {
@@ -108,7 +109,7 @@ export function WeatherDecisionEngine({ location, className }: WeatherDecisionEn
         </div>
         <button
           onClick={() => void handleAnalyze()}
-          disabled={!location || !query.trim() || isAnalyzing}
+          disabled={!location || !query.trim() || isAnalyzing || !walletAddress}
           className="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0"
         >
           {isAnalyzing ? (
@@ -167,6 +168,11 @@ export function WeatherDecisionEngine({ location, className }: WeatherDecisionEn
               <Skeleton className="h-4 w-24" />
               <Skeleton className="h-4 w-24" />
             </div>
+            {txHash && (
+              <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">
+                Tx: {txHash.slice(0, 12)}…{txHash.slice(-8)}
+              </p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

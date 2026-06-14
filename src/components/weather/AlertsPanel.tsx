@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertTriangle, Clock, Eye, ShieldCheck } from 'lucide-react'
-import { useWeatherAlerts } from '@/hooks/useContractAnalysis'
+import { useClientWeatherAlerts } from '@/hooks/useClientContract'
 import { ContractBadge } from '@/components/weather/ContractBadge'
 import { AiExplanationPanel } from '@/components/weather/AiExplanationPanel'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,7 @@ import type { GeocodingResult, WeatherAlert } from '@/types'
 
 type AlertsPanelProps = {
   location: GeocodingResult | null
+  walletAddress: string | null
   className?: string
 }
 
@@ -44,28 +45,13 @@ const LOOKAHEAD_OPTIONS = [
   { value: '48', label: '48 hours' },
 ] as const
 
-export function AlertsPanel({ location, className }: AlertsPanelProps) {
+export function AlertsPanel({ location, walletAddress, className }: AlertsPanelProps) {
   const [lookaheadHours, setLookaheadHours] = useState('12')
-  const [autoChecked, setAutoChecked] = useState(false)
 
-  const { result, isLoading, error, checkAlerts, clearResult } = useWeatherAlerts()
-
-  // Auto-check on location change
-  useEffect(() => {
-    if (location && !autoChecked && !result) {
-      setAutoChecked(true)
-      void checkAlerts({
-        lat: location.lat,
-        lon: location.lon,
-        location_name: location.display_name,
-        lookahead_hours: lookaheadHours,
-      })
-    }
-  }, [location, autoChecked, result, checkAlerts, lookaheadHours])
+  const { result, isLoading, txHash, error, checkAlerts, clearResult } = useClientWeatherAlerts(walletAddress)
 
   const handleCheck = async () => {
     if (!location) return
-    setAutoChecked(true)
     await checkAlerts({
       lat: location.lat,
       lon: location.lon,
@@ -112,7 +98,6 @@ export function AlertsPanel({ location, className }: AlertsPanelProps) {
             onChange={(e) => {
               setLookaheadHours(e.target.value)
               clearResult()
-              setAutoChecked(false)
             }}
             className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
@@ -125,7 +110,7 @@ export function AlertsPanel({ location, className }: AlertsPanelProps) {
         </div>
         <button
           onClick={() => void handleCheck()}
-          disabled={!location || isLoading}
+          disabled={!location || isLoading || !walletAddress}
           className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
         >
           {isLoading ? (
@@ -144,6 +129,13 @@ export function AlertsPanel({ location, className }: AlertsPanelProps) {
         <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
+      )}
+
+      {/* Tx hash while waiting */}
+      {txHash && isLoading && (
+        <p className="mb-3 text-[11px] text-slate-400 font-mono truncate">
+          Tx: {txHash.slice(0, 12)}…{txHash.slice(-8)}
+        </p>
       )}
 
       {/* Results */}

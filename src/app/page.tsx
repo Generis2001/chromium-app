@@ -80,7 +80,7 @@ const PREREQS = [
   },
   {
     icon: '2',
-    text: 'Each analysis submits a real studionet transaction. GEN gas is paid by the app\'s studionet wallet, so you do not need a crypto wallet to use Chromium.',
+    text: 'Each analysis submits a real studionet transaction signed by your MetaMask wallet. GEN gas is deducted from your wallet balance for each feature you use.',
   },
   {
     icon: '3',
@@ -397,11 +397,8 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Ready to experience onchain weather intelligence?
           </h2>
-          <p className="text-slate-400 mb-3">
-            Select a city, trigger an onchain transaction, and receive a blockchain-verified weather decision in 2-5 minutes.
-          </p>
-          <p className="text-slate-500 text-sm mb-10">
-            GEN gas is covered by the app's studionet wallet. No crypto wallet needed.
+          <p className="text-slate-400 mb-10">
+            Select a city, trigger an onchain transaction from your wallet, and receive a blockchain-verified weather decision in 2-5 minutes.
           </p>
 
           <ConnectButton large />

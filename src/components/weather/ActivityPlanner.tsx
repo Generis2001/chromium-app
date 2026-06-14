@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertTriangle, ShieldCheck, Clock, Wrench, CalendarDays } from 'lucide-react'
-import { useActivityRisk, useBestDateFinder } from '@/hooks/useContractAnalysis'
+import { useBestDateFinder } from '@/hooks/useContractAnalysis'
+import { useClientActivityRisk } from '@/hooks/useClientContract'
 import { useIsland } from '@/components/dynamic-island'
 import { RiskBadge } from '@/components/ui/RiskBadge'
 import { ScoreRing } from '@/components/ui/ScoreRing'
@@ -15,6 +16,7 @@ import type { GeocodingResult, SupportedActivity, DateRanking } from '@/types'
 
 type ActivityPlannerProps = {
   location: GeocodingResult | null
+  walletAddress: string | null
   className?: string
 }
 
@@ -39,7 +41,7 @@ const SUITABILITY_STYLES: Record<string, string> = {
   UNSUITABLE: 'bg-red-50 text-red-700 border-red-200',
 }
 
-export function ActivityPlanner({ location, className }: ActivityPlannerProps) {
+export function ActivityPlanner({ location, walletAddress, className }: ActivityPlannerProps) {
   const [activity, setActivity] = useState<SupportedActivity>(SUPPORTED_ACTIVITIES[0])
   const [targetDate, setTargetDate] = useState(() => {
     const d = new Date()
@@ -48,7 +50,7 @@ export function ActivityPlanner({ location, className }: ActivityPlannerProps) {
   const [durationHours, setDurationHours] = useState('3')
   const [mode, setMode] = useState<PlannerMode>('assess')
 
-  const { result, isLoading, error, assess, clearResult } = useActivityRisk()
+  const { result, isLoading, txHash, error, assess, clearResult } = useClientActivityRisk(walletAddress)
   const {
     result: bestDateResult,
     isLoading: bestDateLoading,
@@ -182,7 +184,7 @@ export function ActivityPlanner({ location, className }: ActivityPlannerProps) {
         {mode === 'assess' ? (
           <button
             onClick={() => void handleAssess()}
-            disabled={!location || isLoading}
+            disabled={!location || isLoading || !walletAddress}
             className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
           >
             {isLoading ? (
@@ -220,6 +222,13 @@ export function ActivityPlanner({ location, className }: ActivityPlannerProps) {
         <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
           {error ?? bestDateError}
         </div>
+      )}
+
+      {/* Tx hash while waiting */}
+      {txHash && isLoading && (
+        <p className="mb-3 text-[11px] text-slate-400 font-mono truncate">
+          Tx: {txHash.slice(0, 12)}…{txHash.slice(-8)}
+        </p>
       )}
 
       {/* Results — Assess mode */}

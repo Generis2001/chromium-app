@@ -14,6 +14,7 @@ import { ActivityPlanner } from '@/components/weather/ActivityPlanner'
 import { AlertsPanel } from '@/components/weather/AlertsPanel'
 import { RecentLocationsBar } from '@/components/weather/RecentLocationsBar'
 import { useLocation } from '@/hooks/useLocation'
+import { useWallet } from '@/hooks/useWallet'
 import type { GeocodingResult } from '@/types'
 
 type TabId = 'weather' | 'compare' | 'activities' | 'alerts'
@@ -21,6 +22,7 @@ type TabId = 'weather' | 'compare' | 'activities' | 'alerts'
 function App() {
   const { location, setLocation, recentLocations, clearRecentLocations, isDetecting, error: locationError } = useLocation()
   const [activeTab, setActiveTab] = useState<TabId>('weather')
+  const { address: walletAddress } = useWallet()
 
   const handleLocationSelect = useCallback(
     (geo: GeocodingResult) => { setLocation(geo) },
@@ -115,7 +117,7 @@ function App() {
             <TabsContent value="weather" className="mt-0">
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <div className="lg:col-span-3">
-                  <WeatherDecisionEngine location={location} />
+                  <WeatherDecisionEngine location={location} walletAddress={walletAddress} />
                 </div>
                 <div className="lg:col-span-2">
                   {location ? (
@@ -135,17 +137,17 @@ function App() {
 
             {/* ─── Tab: Compare ─── */}
             <TabsContent value="compare" className="mt-0">
-              <MultiLocationComparison />
+              <MultiLocationComparison walletAddress={walletAddress} />
             </TabsContent>
 
             {/* ─── Tab: Activities ─── */}
             <TabsContent value="activities" className="mt-0">
-              <ActivityPlanner location={location} />
+              <ActivityPlanner location={location} walletAddress={walletAddress} />
             </TabsContent>
 
             {/* ─── Tab: Alerts ─── */}
             <TabsContent value="alerts" className="mt-0">
-              <AlertsPanel location={location} />
+              <AlertsPanel location={location} walletAddress={walletAddress} />
             </TabsContent>
           </Tabs>
 

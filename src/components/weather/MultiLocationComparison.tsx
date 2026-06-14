@@ -3,7 +3,8 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, Loader2, GripVertical } from 'lucide-react'
-import { useTravelComparison, useActivityComparison } from '@/hooks/useContractAnalysis'
+import { useActivityComparison } from '@/hooks/useContractAnalysis'
+import { useClientTravelComparison } from '@/hooks/useClientContract'
 import { useGeocoding } from '@/hooks/useGeocoding'
 import { useIsland } from '@/components/dynamic-island'
 import { RiskBadge } from '@/components/ui/RiskBadge'
@@ -56,7 +57,7 @@ function nextId(): string {
 
 type CompareMode = 'travel' | 'activity'
 
-export function MultiLocationComparison({ className }: { className?: string }) {
+export function MultiLocationComparison({ walletAddress, className }: { walletAddress: string | null; className?: string }) {
   const [locations, setLocations] = useState<LocationEntry[]>([])
   const [mode, setMode] = useState<CompareMode>('travel')
   const [purpose, setPurpose] = useState('travel')
@@ -67,7 +68,7 @@ export function MultiLocationComparison({ className }: { className?: string }) {
   })
   const [showSearch, setShowSearch] = useState(false)
   const { results, isSearching, query, setQuery } = useGeocoding(300)
-  const { result: travelResult, isLoading: travelLoading, error: travelError, compare: travelCompare, clearResult: clearTravelResult } = useTravelComparison()
+  const { result: travelResult, isLoading: travelLoading, txHash: travelTxHash, error: travelError, compare: travelCompare, clearResult: clearTravelResult } = useClientTravelComparison(walletAddress)
   const { result: activityResult, isLoading: activityLoading, error: activityError, compare: activityCompare, clearResult: clearActivityResult } = useActivityComparison()
   const island = useIsland()
   const searchRef = useRef<HTMLDivElement>(null)
@@ -294,7 +295,7 @@ export function MultiLocationComparison({ className }: { className?: string }) {
         </div>
         <button
           onClick={() => void handleCompare()}
-          disabled={locations.length < 2 || isLoading}
+          disabled={locations.length < 2 || isLoading || (mode === 'travel' && !walletAddress)}
           className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
         >
           {isLoading ? (
@@ -313,6 +314,13 @@ export function MultiLocationComparison({ className }: { className?: string }) {
         <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
+      )}
+
+      {/* Tx hash while waiting (travel mode) */}
+      {travelTxHash && travelLoading && (
+        <p className="mb-3 text-[11px] text-slate-400 font-mono truncate">
+          Tx: {travelTxHash.slice(0, 12)}…{travelTxHash.slice(-8)}
+        </p>
       )}
 
       {/* Results */}
