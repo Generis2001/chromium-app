@@ -12,6 +12,7 @@
 
 import { useState, useCallback } from 'react'
 import { createClient, chains } from 'genlayer-js'
+import { getActiveProvider } from '@/lib/privy/provider-store'
 import type {
   WeatherDecision,
   ActivityAssessment,
@@ -57,14 +58,15 @@ async function getAddresses() {
 }
 
 function getWalletClient(address: string) {
-  if (typeof window === 'undefined' || !window.ethereum) {
-    throw new Error('MetaMask not available')
+  const provider = getActiveProvider()
+  if (!provider) {
+    throw new Error('No wallet connected')
   }
   return createClient({
     chain: chains.studionet,
     account: address as `0x${string}`,
-    provider: window.ethereum,
-    endpoint: `${window.location.origin}/api/rpc`,
+    provider,
+    endpoint: `${typeof window !== 'undefined' ? window.location.origin : ''}/api/rpc`,
   })
 }
 

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { ThemeProvider } from "next-themes";
-import "./globals.css";
-import { ContractStatusBar } from "@/components/weather/ContractStatusBar";
+import { Providers } from "@/components/Providers";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ContractStatusBar } from "@/components/weather/ContractStatusBar";
+import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,8 +28,8 @@ export default function RootLayout({
       className={`${inter.variable} h-full`}
     >
       <body className="font-sans antialiased text-slate-900 dark:text-slate-100 min-h-screen">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          {/* Watermark — the weather UI inspiration image, tiled at very low opacity */}
+        <Providers>
+          {/* Watermark */}
           <div
             aria-hidden="true"
             style={{
@@ -49,7 +49,7 @@ export default function RootLayout({
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
             <ContractStatusBar />
           </div>
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

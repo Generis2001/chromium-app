@@ -7,6 +7,7 @@ type WalletContextValue = WalletState & {
   hasMetaMask: boolean
   connect: () => Promise<void>
   switchToStudionet: () => Promise<void>
+  disconnect: () => Promise<void>
   getClient: () => ReturnType<typeof import('@/hooks/useWallet').useWallet>['getClient'] extends () => infer R ? R : never
   refreshBalance: () => void
 }
