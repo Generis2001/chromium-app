@@ -98,9 +98,6 @@ export function ContractStatusBar() {
   }, [fetchHealth]);
 
   const contracts = data?.contracts ?? null;
-  const onlineCount =
-    contracts?.filter((c) => c.status === "healthy").length ?? 0;
-  const total = contracts?.length ?? 4;
 
   return (
     <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -109,7 +106,6 @@ export function ContractStatusBar() {
           {Array.from({ length: 4 }).map((_, i) => (
             <StatusPill key={i} contract={null} loading={true} />
           ))}
-          <span className="animate-pulse">Loading…</span>
         </>
       ) : (
         <>
@@ -118,21 +114,6 @@ export function ContractStatusBar() {
               <StatusPill key={i} contract={c} loading={false} />
             ),
           )}
-          <span>
-            Contracts:{" "}
-            <span
-              style={{
-                color:
-                  onlineCount === total
-                    ? "#22c55e"
-                    : onlineCount === 0
-                      ? "#ef4444"
-                      : "#f59e0b",
-              }}
-            >
-              {onlineCount}/{total} online
-            </span>
-          </span>
         </>
       )}
     </div>
