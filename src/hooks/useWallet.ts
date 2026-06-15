@@ -49,6 +49,8 @@ export function useWallet() {
   const { wallets } = useWallets()
   const { connectWallet } = useConnectWallet()
   const { logout } = useLogout()
+
+  const [connecting, setConnecting] = useState(false)
   const [balanceGen, setBalanceGen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,12 +66,18 @@ export function useWallet() {
   const onCorrectChain = chainIdHex === STUDIONET_CHAIN_ID_HEX
 
   const connected = !!(authenticated && address)
-  const connecting = !ready
+
+  // Stop connecting spinner as soon as wallet connects
+  useEffect(() => {
+    if (connected) setConnecting(false)
+  }, [connected])
 
   // Keep provider store in sync
   useEffect(() => {
     if (!wallet) { setActiveProvider(null); return }
-    void wallet.getEthereumProvider().then((p) => setActiveProvider(p)).catch(() => setActiveProvider(null))
+    void wallet.getEthereumProvider()
+      .then((p) => setActiveProvider(p))
+      .catch(() => setActiveProvider(null))
   }, [wallet])
 
   // Fetch balance when address changes
@@ -83,18 +91,25 @@ export function useWallet() {
 
   // ── connect ───────────────────────────────────────────────────────────────
   const connect = useCallback(async () => {
+    if (!ready) return
     setError(null)
+    setConnecting(true)
     try {
       connectWallet()
+      // Privy opens a modal — connecting resets via the useEffect above when wallet connects,
+      // or after a timeout so the button doesn't stay locked if user closes the modal
+      setTimeout(() => setConnecting(false), 60_000)
     } catch (err) {
+      setConnecting(false)
       setError(err instanceof Error ? err.message : 'Connection failed')
     }
-  }, [connectWallet])
+  }, [ready, connectWallet])
 
   // ── switch to studionet ───────────────────────────────────────────────────
   const switchToStudionet = useCallback(async () => {
     if (!wallet) return
     setError(null)
+    setConnecting(true)
     try {
       const provider = await wallet.getEthereumProvider()
       try {
@@ -115,6 +130,8 @@ export function useWallet() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Switch failed')
+    } finally {
+      setConnecting(false)
     }
   }, [wallet])
 
