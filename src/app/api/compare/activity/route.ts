@@ -5,6 +5,7 @@ import { createHash } from "crypto";
 import { z } from "zod";
 import { assessActivityWithCache } from "@/lib/genlayer/assess-helpers";
 import { getCachedContractResult, cacheContractResult } from "@/lib/db";
+import { generateComparisonReasoning } from "@/lib/ai/explainer";
 import { SUPPORTED_ACTIVITIES } from "@/types";
 import type { ActivityComparisonResult, ActivityCityScore, ApiResponse } from "@/types";
 
@@ -76,7 +77,7 @@ export async function POST(
         scored.push({
           name: loc.name,
           rank: 0,
-          overall_score: 100 - a.risk_score,
+          overall_score: a.risk_score,
           suitability: a.suitability,
           risk_level: a.risk_level,
           risk_score: a.risk_score,
@@ -106,9 +107,22 @@ export async function POST(
     });
 
     const best = scored[0];
+    const runnerUp = scored[1] ?? null;
+
+    const templateReasoning = `${best.name} scores ${Math.round(best.overall_score)}/100 with ${best.suitability.toLowerCase()} conditions for ${activity} on ${target_date}` +
+      (runnerUp ? `, ahead of ${runnerUp.name} (${Math.round(runnerUp.overall_score)}/100, ${runnerUp.suitability.toLowerCase()})` : "") + ".";
+
+    const groq = await generateComparisonReasoning({
+      purpose: activity.replace(/_/g, " "),
+      travel_date: target_date,
+      best: { name: best.name, score: Math.round(best.overall_score), condition: best.suitability.toLowerCase(), temp: null },
+      runnerUp: runnerUp ? { name: runnerUp.name, score: Math.round(runnerUp.overall_score), condition: runnerUp.suitability.toLowerCase() } : null,
+      allLocations: scored.map((s) => ({ name: s.name, score: Math.round(s.overall_score), condition: s.suitability.toLowerCase() })),
+    });
+
     const result: ActivityComparisonResult = {
       best_location: best.name,
-      reasoning: `${best.name} scored highest (${best.overall_score}/100) with ${best.suitability.toLowerCase()} conditions for ${activity}.`,
+      reasoning: groq?.reasoning ?? templateReasoning,
       ranked_locations: scored,
       purpose_note: `Rankings based on activity risk assessment for ${activity} on ${target_date}.`,
       activity,
