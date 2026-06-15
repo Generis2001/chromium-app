@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { usePrivy, useWallets, useConnectWallet, useLogout } from '@privy-io/react-auth'
+import { usePrivy, useWallets, useLogout } from '@privy-io/react-auth'
 import { createClient, chains } from 'genlayer-js'
 import { setActiveProvider } from '@/lib/privy/provider-store'
 
@@ -45,16 +45,14 @@ async function fetchGenBalance(address: string): Promise<string | null> {
 }
 
 export function useWallet() {
-  const { ready, authenticated } = usePrivy()
+  const { login, authenticated } = usePrivy()
   const { wallets } = useWallets()
-  const { connectWallet } = useConnectWallet()
   const { logout } = useLogout()
 
-  const [connecting, setConnecting] = useState(false)
+  const [switching, setSwitching] = useState(false)
   const [balanceGen, setBalanceGen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // First connected external wallet
   const wallet = wallets[0] ?? null
   const address = wallet?.address ?? null
 
@@ -64,15 +62,9 @@ export function useWallet() {
     ? '0x' + parseInt(rawChainId.split(':').pop() ?? rawChainId, 10).toString(16)
     : null
   const onCorrectChain = chainIdHex === STUDIONET_CHAIN_ID_HEX
-
   const connected = !!(authenticated && address)
 
-  // Stop connecting spinner as soon as wallet connects
-  useEffect(() => {
-    if (connected) setConnecting(false)
-  }, [connected])
-
-  // Keep provider store in sync
+  // Keep provider store in sync whenever wallet changes
   useEffect(() => {
     if (!wallet) { setActiveProvider(null); return }
     void wallet.getEthereumProvider()
@@ -80,7 +72,7 @@ export function useWallet() {
       .catch(() => setActiveProvider(null))
   }, [wallet])
 
-  // Fetch balance when address changes
+  // Fetch GEN balance when address changes
   useEffect(() => {
     if (address) {
       void fetchGenBalance(address).then(setBalanceGen)
@@ -89,27 +81,17 @@ export function useWallet() {
     }
   }, [address])
 
-  // ── connect ───────────────────────────────────────────────────────────────
-  const connect = useCallback(async () => {
-    if (!ready) return
+  // ── connect — opens Privy modal (synchronous) ─────────────────────────────
+  const connect = useCallback(() => {
     setError(null)
-    setConnecting(true)
-    try {
-      connectWallet()
-      // Privy opens a modal — connecting resets via the useEffect above when wallet connects,
-      // or after a timeout so the button doesn't stay locked if user closes the modal
-      setTimeout(() => setConnecting(false), 60_000)
-    } catch (err) {
-      setConnecting(false)
-      setError(err instanceof Error ? err.message : 'Connection failed')
-    }
-  }, [ready, connectWallet])
+    login()
+  }, [login])
 
   // ── switch to studionet ───────────────────────────────────────────────────
   const switchToStudionet = useCallback(async () => {
     if (!wallet) return
     setError(null)
-    setConnecting(true)
+    setSwitching(true)
     try {
       const provider = await wallet.getEthereumProvider()
       try {
@@ -131,7 +113,7 @@ export function useWallet() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Switch failed')
     } finally {
-      setConnecting(false)
+      setSwitching(false)
     }
   }, [wallet])
 
@@ -161,17 +143,15 @@ export function useWallet() {
     })
   }, [address, wallet])
 
-  const hasMetaMask = typeof window !== 'undefined' && Boolean(window.ethereum)
-
   return {
     connected,
     address,
     balanceGen,
     chainId: chainIdHex,
     onCorrectChain,
-    connecting,
+    connecting: switching,  // only true during chain switch, never during modal open
     error,
-    hasMetaMask,
+    hasMetaMask: typeof window !== 'undefined' && Boolean(window.ethereum),
     connect,
     switchToStudionet,
     disconnect,
