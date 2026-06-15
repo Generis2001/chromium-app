@@ -1,6 +1,176 @@
 import Groq from "groq-sdk";
 import type { AiExplanation, ExplanationType } from "@/types";
 
+// ─── Shared Groq call ─────────────────────────────────────────────────────────
+
+async function callGroq(system: string, user: string): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const groq = new Groq({ apiKey });
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      temperature: 0.5,
+      max_tokens: 300,
+    });
+    return completion.choices[0]?.message?.content?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Inline reasoning generators (used by scoring.ts) ────────────────────────
+
+export async function generateWeatherReasoning(data: {
+  location: string;
+  query: string;
+  temp: number;
+  feels: number;
+  humidity: number;
+  wind: number;
+  gusts: number;
+  precip: number;
+  uv: number;
+  visibility: number;
+  condition: string;
+  decision: string;
+  risk_level: string;
+  comfort_score: number;
+}): Promise<{ reasoning: string; recommendation: string } | null> {
+  const system =
+    `You are a precise weather analyst. Given real-time weather data for a specific location, ` +
+    `write two things in JSON: ` +
+    `"reasoning" (2-3 sentences describing the actual conditions and why they lead to the decision — ` +
+    `mention how humidity, heat, wind, or other factors specifically affect this location) and ` +
+    `"recommendation" (1 direct sentence telling the user what to do given their query). ` +
+    `Be specific to the location and numbers. Never be generic. Respond with JSON only.`;
+
+  const user =
+    `Location: ${data.location}\n` +
+    `User query: "${data.query}"\n` +
+    `Conditions: ${data.condition}, ${data.temp}°C (feels like ${data.feels}°C)\n` +
+    `Humidity: ${data.humidity}%, Wind: ${data.wind} km/h (gusts ${data.gusts} km/h)\n` +
+    `Precipitation: ${data.precip} mm, UV index: ${data.uv}, Visibility: ${Math.round(data.visibility / 1000 * 10) / 10} km\n` +
+    `Decision: ${data.decision}, Risk: ${data.risk_level}, Comfort score: ${data.comfort_score}/100`;
+
+  const raw = await callGroq(system, user);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.reasoning === "string" && typeof parsed.recommendation === "string") {
+      return { reasoning: parsed.reasoning, recommendation: parsed.recommendation };
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+export async function generateActivityReasoning(data: {
+  location: string;
+  activity: string;
+  temp: number;
+  precip: number;
+  wind: number;
+  gusts: number;
+  uv: number;
+  humidity: number;
+  suitability: string;
+  risk_level: string;
+  risk_score: number;
+  concerns: string[];
+  duration_hours: string;
+}): Promise<{ recommendation: string } | null> {
+  const system =
+    `You are an activity safety advisor. Given real weather conditions and an activity, ` +
+    `write a "recommendation" (1-2 direct sentences) telling the user whether and how to proceed ` +
+    `with their activity. Reference the actual conditions. Be specific — mention temperature, ` +
+    `wind, rain, or UV as relevant to THIS activity in THIS location. Respond with JSON only.`;
+
+  const user =
+    `Location: ${data.location}, Activity: ${data.activity} (${data.duration_hours}h session)\n` +
+    `Temp: ${data.temp}°C, Humidity: ${data.humidity}%, Wind: ${data.wind} km/h (gusts ${data.gusts} km/h)\n` +
+    `Precipitation: ${data.precip} mm, UV: ${data.uv}\n` +
+    `Suitability: ${data.suitability}, Risk: ${data.risk_level} (score ${data.risk_score}/100)\n` +
+    `Key concerns: ${data.concerns.join("; ") || "none"}`;
+
+  const raw = await callGroq(system, user);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.recommendation === "string") {
+      return { recommendation: parsed.recommendation };
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+export async function generateComparisonReasoning(data: {
+  purpose: string;
+  travel_date: string;
+  best: { name: string; score: number; condition: string; temp: number | null };
+  runnerUp: { name: string; score: number; condition: string } | null;
+  allLocations: Array<{ name: string; score: number; condition: string }>;
+}): Promise<{ reasoning: string } | null> {
+  const system =
+    `You are a travel weather advisor. Given weather scores for multiple destinations, ` +
+    `write a "reasoning" (2-3 sentences) explaining why the top-ranked location is best ` +
+    `for the user's purpose, comparing it specifically against the others. ` +
+    `Reference conditions and scores. Be direct and specific. Respond with JSON only.`;
+
+  const others = data.allLocations
+    .filter((l) => l.name !== data.best.name)
+    .map((l) => `${l.name} (${l.score}/100, ${l.condition})`)
+    .join(", ");
+
+  const user =
+    `Purpose: ${data.purpose} on ${data.travel_date}\n` +
+    `Best: ${data.best.name} — score ${data.best.score}/100, ${data.best.condition}` +
+    (data.best.temp != null ? `, ${Math.round(data.best.temp)}°C` : "") + `\n` +
+    `Others: ${others || "none"}`;
+
+  const raw = await callGroq(system, user);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.reasoning === "string") {
+      return { reasoning: parsed.reasoning };
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+export async function generateAlertSummary(data: {
+  location: string;
+  hours: number;
+  overall_severity: string;
+  alert_types: string[];
+  peak_values: string[];
+}): Promise<{ summary: string } | null> {
+  const system =
+    `You are a weather safety communicator. Given active weather alerts, ` +
+    `write a "summary" (1-2 sentences) that conveys urgency and specific danger to someone in this location. ` +
+    `Name the alert types and peak values. Be direct. Respond with JSON only.`;
+
+  const user =
+    `Location: ${data.location}, Lookahead: ${data.hours} hours\n` +
+    `Overall severity: ${data.overall_severity}\n` +
+    `Active alerts: ${data.alert_types.join(", ")}\n` +
+    `Peak values: ${data.peak_values.join(", ")}`;
+
+  const raw = await callGroq(system, user);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.summary === "string") {
+      return { summary: parsed.summary };
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
 type GenerateExplanationParams = {
   contractType: ExplanationType;
   contractResult: Record<string, unknown>;

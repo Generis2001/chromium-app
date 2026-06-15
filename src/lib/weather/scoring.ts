@@ -13,6 +13,12 @@ import type {
   CityScore,
   RankedLocation,
 } from "@/types";
+import {
+  generateWeatherReasoning,
+  generateActivityReasoning,
+  generateComparisonReasoning,
+  generateAlertSummary,
+} from "@/lib/ai/explainer";
 
 const OPEN_METEO = "https://api.open-meteo.com/v1/forecast";
 const UNITS = "&wind_speed_unit=kmh&temperature_unit=celsius&precipitation_unit=mm&timezone=auto";
@@ -115,15 +121,35 @@ export async function computeWeatherAnalysis(params: {
   if (wind > 20) parts.push(`wind ${Math.round(wind)} km/h with gusts to ${Math.round(gusts)} km/h`);
   if (precip > 0) parts.push(`precipitation ${precip.toFixed(1)} mm`);
   if (humidity > 80) parts.push(`humidity ${Math.round(humidity)}%`);
-  const reasoning =
+  const templateReasoning =
     parts.join(". ") + `. Comfort score: ${comfort_score}/100, risk level: ${risk_level}.`;
 
-  const recommendation =
+  const templateRecommendation =
     decision === "GO"
       ? `Conditions are favourable — go ahead with your plans in ${location_name}.`
       : decision === "AVOID"
       ? `Conditions are hazardous in ${location_name}. Postpone or choose an indoor alternative.`
       : `Conditions are mixed in ${location_name}. Proceed with caution and monitor the forecast.`;
+
+  const groqWeather = await generateWeatherReasoning({
+    location: location_name,
+    query,
+    temp: Math.round(temp),
+    feels: Math.round(feels),
+    humidity: Math.round(humidity),
+    wind: Math.round(wind),
+    gusts: Math.round(gusts),
+    precip,
+    uv,
+    visibility,
+    condition,
+    decision,
+    risk_level,
+    comfort_score,
+  });
+
+  const reasoning = groqWeather?.reasoning ?? templateReasoning;
+  const recommendation = groqWeather?.recommendation ?? templateRecommendation;
 
   const key_factors = [
     `Condition: ${condition}`,
@@ -309,7 +335,17 @@ export async function computeTravelComparison(params: {
       `${runnerUp.name} scores ${Math.round(runnerUp.overall_score)} (${Math.round(gap)} points behind, ${runnerUp.condition})`,
     );
   }
-  const reasoning = reasoningParts.join(". ") + ` for ${purpose} on ${travel_date}.`;
+  const templateReasoning = reasoningParts.join(". ") + ` for ${purpose} on ${travel_date}.`;
+
+  const groqComparison = await generateComparisonReasoning({
+    purpose,
+    travel_date,
+    best: { name: best.name, score: Math.round(best.overall_score), condition: best.condition, temp: best.temp_current },
+    runnerUp: runnerUp ? { name: runnerUp.name, score: Math.round(runnerUp.overall_score), condition: runnerUp.condition } : null,
+    allLocations: cityData.map((c) => ({ name: c.name, score: Math.round(c.overall_score), condition: c.condition })),
+  });
+
+  const reasoning = groqComparison?.reasoning ?? templateReasoning;
 
   const ranked_locations: RankedLocation[] = cityData.map((c, i) => {
     const desc: string[] = [];
@@ -491,13 +527,31 @@ export async function computeActivityRisk(params: {
   else { risk_level = "HIGH"; suitability = "UNSUITABLE"; }
 
   const actLabel = actKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  let recommendation: string;
+  let templateRecommendation: string;
   if (suitability === "SUITABLE")
-    recommendation = `Conditions are good for ${actLabel} in ${location_name}. Go ahead with your ${duration_hours}-hour session.`;
+    templateRecommendation = `Conditions are good for ${actLabel} in ${location_name}. Go ahead with your ${duration_hours}-hour session.`;
   else if (suitability === "MARGINAL")
-    recommendation = `Conditions are acceptable for ${actLabel} in ${location_name} but monitor weather closely during your ${duration_hours}-hour session.`;
+    templateRecommendation = `Conditions are acceptable for ${actLabel} in ${location_name} but monitor weather closely during your ${duration_hours}-hour session.`;
   else
-    recommendation = `Conditions are poor for ${actLabel} in ${location_name}. Consider rescheduling your ${duration_hours}-hour session.`;
+    templateRecommendation = `Conditions are poor for ${actLabel} in ${location_name}. Consider rescheduling your ${duration_hours}-hour session.`;
+
+  const groqActivity = await generateActivityReasoning({
+    location: location_name,
+    activity: actLabel,
+    temp: Math.round(temp),
+    precip,
+    wind: Math.round(wind),
+    gusts: Math.round(gusts),
+    uv,
+    humidity: Math.round(humidity),
+    suitability,
+    risk_level,
+    risk_score,
+    concerns,
+    duration_hours,
+  });
+
+  const recommendation = groqActivity?.recommendation ?? templateRecommendation;
 
   if (!concerns.length) concerns.push(`Conditions within normal range for ${actLabel}`);
 
@@ -652,6 +706,7 @@ export async function computeWeatherAlerts(params: {
     };
   }
 
+
   const sevs = rawAlerts.map((a) => a.severity);
   const overall = sevs.includes("EMERGENCY") ? "EMERGENCY" : sevs.includes("WARNING") ? "WARNING" : "WATCH";
 
@@ -684,11 +739,21 @@ export async function computeWeatherAlerts(params: {
   });
 
   const types = rawAlerts.map((a) => a.type.replace(/_/g, " "));
+  const templateSummary = `${overall} level alert for ${location_name}. Active conditions: ${types.join(", ")}. Covering the next ${hours} hours.`;
+
+  const groqAlert = await generateAlertSummary({
+    location: location_name,
+    hours,
+    overall_severity: overall,
+    alert_types: types,
+    peak_values: rawAlerts.map((a) => `${a.type.replace(/_/g, " ")}: ${a.peak_value}`),
+  });
+
   return {
     location: location_name, lat, lon,
     alert_count: alerts.length,
     alerts,
     overall_severity: overall as AlertsResult["overall_severity"],
-    summary: `${overall} level alert for ${location_name}. Active conditions: ${types.join(", ")}. Covering the next ${hours} hours.`,
+    summary: groqAlert?.summary ?? templateSummary,
   };
 }
