@@ -17,7 +17,10 @@ async function callGroq(system: string, user: string): Promise<string | null> {
       temperature: 0.5,
       max_tokens: 300,
     });
-    return completion.choices[0]?.message?.content?.trim() ?? null;
+    const raw = completion.choices[0]?.message?.content?.trim() ?? null;
+    if (!raw) return null;
+    // Strip markdown code fences the model sometimes wraps around JSON
+    return raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
   } catch {
     return null;
   }
