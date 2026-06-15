@@ -214,5 +214,19 @@ export function useWallet() {
     if (state.address) void fetchBalance(state.address)
   }, [state.address, fetchBalance])
 
-  return { ...state, hasMetaMask, connect, switchToStudionet, getClient, refreshBalance }
+  const disconnect = useCallback(async () => {
+    try {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        await window.ethereum.request({
+          method: 'wallet_revokePermissions',
+          params: [{ eth_accounts: {} }],
+        })
+      }
+    } catch {
+      // wallet_revokePermissions not supported in all versions — fall through
+    }
+    setState({ connected: false, address: null, balanceGen: null, chainId: null, onCorrectChain: false, connecting: false, error: null })
+  }, [])
+
+  return { ...state, hasMetaMask, connect, switchToStudionet, getClient, refreshBalance, disconnect }
 }

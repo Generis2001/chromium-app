@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { CloudSun, Map, Activity, Bell } from 'lucide-react'
+import { CloudSun, Map, Activity, Bell, LogOut } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { IslandProvider } from '@/components/dynamic-island'
 import { DynamicIsland } from '@/components/dynamic-island'
@@ -20,9 +21,15 @@ import type { GeocodingResult } from '@/types'
 type TabId = 'weather' | 'compare' | 'activities' | 'alerts'
 
 function App() {
+  const router = useRouter()
   const { location, setLocation, recentLocations, clearRecentLocations, isDetecting, error: locationError } = useLocation()
   const [activeTab, setActiveTab] = useState<TabId>('weather')
-  const { address: walletAddress } = useWallet()
+  const { address: walletAddress, disconnect } = useWallet()
+
+  const handleExit = useCallback(async () => {
+    await disconnect()
+    router.push('/')
+  }, [disconnect, router])
 
   const handleLocationSelect = useCallback(
     (geo: GeocodingResult) => { setLocation(geo) },
@@ -32,6 +39,17 @@ function App() {
   return (
     <IslandProvider>
       <DynamicIsland />
+
+      {/* Exit button — top right, always visible */}
+      <div className="fixed top-4 right-4 z-50">
+        <button
+          onClick={() => void handleExit()}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 text-xs font-medium transition-colors shadow-sm"
+        >
+          <LogOut size={13} />
+          Exit Chromium
+        </button>
+      </div>
 
       <div className="min-h-screen bg-[#F0F4FF] dark:bg-transparent">
         <div className="max-w-6xl mx-auto px-4 pt-24 pb-24">
