@@ -45,6 +45,42 @@ function sl<T>(arr: T[] | undefined, idx: number, def: T): T {
   return arr && arr.length > idx ? arr[idx] : def;
 }
 
+// ─── Thermal comfort helpers ──────────────────────────────────────────────────
+
+// NWS heat index formula. Returns heat index in °C when conditions warrant it.
+// Accurate for temp ≥ 27°C and humidity ≥ 40% — the tropical comfort range.
+function calcHeatIndex(tempC: number, humidity: number): number {
+  if (tempC < 27 || humidity < 40) return tempC;
+  const T = tempC * 9 / 5 + 32; // to °F
+  const H = humidity;
+  const HI =
+    -42.379 + 2.04901523 * T + 10.14333127 * H -
+    0.22475541 * T * H - 0.00683783 * T * T - 0.05481717 * H * H +
+    0.00122874 * T * T * H + 0.00085282 * T * H * H -
+    0.00000199 * T * T * H * H;
+  return (HI - 32) * 5 / 9; // back to °C
+}
+
+// Returns the temperature that actually matters for human comfort/safety.
+// Hot + humid → heat index. Cold + windy → wind chill. Otherwise raw temp.
+function calcPerceivedTemp(tempC: number, humidity: number, windKmh: number): number {
+  if (tempC >= 27 && humidity >= 40) return calcHeatIndex(tempC, humidity);
+  if (tempC <= 10 && windKmh > 5) {
+    const V = Math.pow(windKmh, 0.16);
+    return 13.12 + 0.6215 * tempC - 11.37 * V + 0.3965 * tempC * V;
+  }
+  return tempC;
+}
+
+// Translates precipitation probability (0–100) into a comfort score penalty.
+function precipProbPenalty(probPercent: number): number {
+  if (probPercent < 30) return 0;
+  if (probPercent < 50) return 5;
+  if (probPercent < 70) return 12;
+  if (probPercent < 85) return 20;
+  return 30;
+}
+
 // ─── Weather Analysis ─────────────────────────────────────────────────────────
 
 export async function computeWeatherAnalysis(params: {
@@ -58,50 +94,86 @@ export async function computeWeatherAnalysis(params: {
   const url =
     `${OPEN_METEO}?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,relative_humidity_2m,pressure_msl,visibility,uv_index` +
-    `&hourly=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,visibility,uv_index,weather_code` +
+    `&hourly=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,visibility,uv_index,weather_code,precipitation_probability,relative_humidity_2m` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,weather_code,precipitation_probability_max,uv_index_max` +
     `&forecast_days=7${UNITS}`;
 
   const weather = await omFetch(url);
   const current = (weather.current ?? {}) as Record<string, number>;
-  const daily = (weather.daily ?? {}) as Record<string, number[]>;
+  const daily   = (weather.daily   ?? {}) as Record<string, number[]>;
+  const hourlyRaw = (weather.hourly ?? {}) as Record<string, (number | null)[]>;
 
-  const temp = current.temperature_2m ?? 20;
-  const feels = current.apparent_temperature ?? temp;
-  const wind = current.wind_speed_10m ?? 0;
-  const gusts = current.wind_gusts_10m ?? 0;
-  const precip = current.precipitation ?? 0;
-  const humidity = current.relative_humidity_2m ?? 50;
-  const visibility = current.visibility ?? 10000;
-  const uv = current.uv_index ?? 0;
-  const wcode = current.weather_code ?? 0;
+  const temp     = current.temperature_2m        ?? 20;
+  const feels    = current.apparent_temperature  ?? temp;
+  const wind     = current.wind_speed_10m        ?? 0;
+  const gusts    = current.wind_gusts_10m        ?? 0;
+  const precip   = current.precipitation         ?? 0;
+  const humidity = current.relative_humidity_2m  ?? 50;
+  const visibility = current.visibility          ?? 10000;
+  const uv       = current.uv_index              ?? 0;
+  const wcode    = current.weather_code          ?? 0;
   const condition = classifyWmo(wcode);
 
+  // Perceived temperature accounts for heat index (tropical) or wind chill (cold)
+  const heatIndex   = calcHeatIndex(temp, humidity);
+  const perceivedTemp = calcPerceivedTemp(temp, humidity, wind);
+
+  // Next-6h average precipitation probability from hourly data
+  const hPrecipProb = (hourlyRaw.precipitation_probability ?? []).slice(0, 6);
+  const avgPrecipProb6h = hPrecipProb.length > 0
+    ? hPrecipProb.reduce<number>((a, x) => a + (x ?? 0), 0) / hPrecipProb.length
+    : 0;
+
   let score = 100;
-  if (temp < 0) score -= 40;
-  else if (temp < 5) score -= 25;
-  else if (temp < 10) score -= 10;
-  else if (temp > 38) score -= 40;
-  else if (temp > 32) score -= 20;
-  else if (temp > 28) score -= 8;
-  if (wind > 80) score -= 35;
-  else if (wind > 50) score -= 20;
-  else if (wind > 30) score -= 8;
-  if (precip > 10) score -= 30;
-  else if (precip > 5) score -= 15;
-  else if (precip > 1) score -= 5;
-  if (humidity > 90) score -= 10;
-  else if (humidity < 20) score -= 8;
-  if (visibility < 500) score -= 25;
-  else if (visibility < 2000) score -= 10;
+
+  // Temperature: use perceived temp so 30°C + 85% humidity (→ ~38°C heat index)
+  // is scored like the dangerous heat it actually is
+  if (perceivedTemp < 0)        score -= 40;
+  else if (perceivedTemp < 5)   score -= 25;
+  else if (perceivedTemp < 10)  score -= 10;
+  else if (perceivedTemp > 41)  score -= 50; // extreme heat index
+  else if (perceivedTemp > 38)  score -= 40;
+  else if (perceivedTemp > 32)  score -= 20;
+  else if (perceivedTemp > 28)  score -= 8;
+
+  // Humidity-heat discomfort: captures muggy conditions even when heat index
+  // hasn't crossed the danger threshold — common in tropical coastal climates
+  if (temp >= 26 && temp <= 35) {
+    if (humidity > 85)      score -= 15;
+    else if (humidity > 75) score -= 8;
+  }
+
+  // UV: affects outdoor safety and comfort even when temp is moderate
+  if (uv >= 11) score -= 18;
+  else if (uv >= 8) score -= 8;
+
+  if (wind > 80)       score -= 35;
+  else if (wind > 50)  score -= 20;
+  else if (wind > 30)  score -= 8;
+
+  if (precip > 10)      score -= 30;
+  else if (precip > 5)  score -= 15;
+  else if (precip > 1)  score -= 5;
+
+  // Only penalise extreme dryness (high humidity already penalised above)
+  if (humidity < 20) score -= 8;
+
+  if (visibility < 500)        score -= 25;
+  else if (visibility < 2000)  score -= 10;
+
+  // Rain probability for the next 6 hours — reflects likelihood of getting wet
+  score -= precipProbPenalty(avgPrecipProb6h);
+
   const comfort_score = Math.max(0, Math.min(100, score));
 
+  // Risk level: heat index ≥ 38 is MEDIUM, ≥ 41 is HIGH (matches WMO guidance)
   let risk_level: "LOW" | "MEDIUM" | "HIGH";
-  if (wcode >= 95 || wind > 80 || gusts > 100 || precip > 50 || visibility < 200) {
+  if (wcode >= 95 || wind > 80 || gusts > 100 || precip > 50 || visibility < 200 || heatIndex >= 41) {
     risk_level = "HIGH";
   } else if (
     (wcode >= 71 && wcode < 78) || (wcode >= 45 && wcode < 50) ||
-    wind > 40 || precip > 15 || visibility < 1000 || temp < 0 || temp > 38
+    wind > 40 || precip > 15 || visibility < 1000 || temp < 0 || temp > 38 ||
+    heatIndex >= 38
   ) {
     risk_level = "MEDIUM";
   } else {
@@ -109,18 +181,19 @@ export async function computeWeatherAnalysis(params: {
   }
 
   let decision: "GO" | "CAUTION" | "AVOID";
-  if (risk_level === "LOW" && comfort_score >= 70) decision = "GO";
-  else if (risk_level === "HIGH" || comfort_score < 40) decision = "AVOID";
-  else decision = "CAUTION";
+  if (risk_level === "LOW" && comfort_score >= 70)       decision = "GO";
+  else if (risk_level === "HIGH" || comfort_score < 40)  decision = "AVOID";
+  else                                                    decision = "CAUTION";
 
   const confidence = risk_level !== "MEDIUM" ? 90 : 72;
 
   const parts: string[] = [
-    `Current conditions in ${location_name}: ${condition}, ${Math.round(temp)}°C (feels like ${Math.round(feels)}°C)`,
+    `Current conditions in ${location_name}: ${condition}, ${Math.round(temp)}°C (feels like ${Math.round(perceivedTemp)}°C)`,
   ];
+  if (heatIndex > temp + 1) parts.push(`heat index ${Math.round(heatIndex)}°C due to ${Math.round(humidity)}% humidity`);
   if (wind > 20) parts.push(`wind ${Math.round(wind)} km/h with gusts to ${Math.round(gusts)} km/h`);
   if (precip > 0) parts.push(`precipitation ${precip.toFixed(1)} mm`);
-  if (humidity > 80) parts.push(`humidity ${Math.round(humidity)}%`);
+  if (avgPrecipProb6h > 30) parts.push(`${Math.round(avgPrecipProb6h)}% rain probability next 6 hours`);
   const templateReasoning =
     parts.join(". ") + `. Comfort score: ${comfort_score}/100, risk level: ${risk_level}.`;
 
@@ -134,11 +207,11 @@ export async function computeWeatherAnalysis(params: {
   const groqWeather = await generateWeatherReasoning({
     location: location_name,
     query,
-    temp: Math.round(temp),
-    feels: Math.round(feels),
-    humidity: Math.round(humidity),
-    wind: Math.round(wind),
-    gusts: Math.round(gusts),
+    temp:         Math.round(temp),
+    feels:        Math.round(perceivedTemp),
+    humidity:     Math.round(humidity),
+    wind:         Math.round(wind),
+    gusts:        Math.round(gusts),
     precip,
     uv,
     visibility,
@@ -148,24 +221,28 @@ export async function computeWeatherAnalysis(params: {
     comfort_score,
   });
 
-  const reasoning = groqWeather?.reasoning ?? templateReasoning;
-  const recommendation = groqWeather?.recommendation ?? templateRecommendation;
+  const reasoning       = groqWeather?.reasoning       ?? templateReasoning;
+  const recommendation  = groqWeather?.recommendation  ?? templateRecommendation;
 
   const key_factors = [
     `Condition: ${condition}`,
-    `Temperature: ${Math.round(temp)}°C`,
+    `Temperature: ${Math.round(temp)}°C (perceived ${Math.round(perceivedTemp)}°C)`,
     `Wind: ${Math.round(wind)} km/h`,
   ];
-  if (precip > 0) key_factors.push(`Precipitation: ${precip.toFixed(1)} mm`);
-  if (uv > 6) key_factors.push(`UV index: ${Math.round(uv)}`);
+  if (heatIndex > temp + 1) key_factors.push(`Heat index: ${Math.round(heatIndex)}°C`);
+  if (precip > 0)           key_factors.push(`Precipitation: ${precip.toFixed(1)} mm`);
+  if (avgPrecipProb6h > 30) key_factors.push(`Rain probability (6h): ${Math.round(avgPrecipProb6h)}%`);
+  if (uv > 6)               key_factors.push(`UV index: ${Math.round(uv)}`);
 
-  const dailyPrecip = daily.precipitation_sum ?? [];
+  const dailyPrecip  = daily.precipitation_sum ?? [];
   const dailyTempMax = daily.temperature_2m_max ?? [];
+  const dailyPrecipProb = daily.precipitation_probability_max ?? [];
   const alt_days: number[] = [];
   for (let i = 1; i < Math.min(7, dailyPrecip.length); i++) {
-    const dp = dailyPrecip[i] ?? 0;
-    const dt = dailyTempMax[i] ?? 20;
-    if (dp < 2 && dt >= 10 && dt <= 30) alt_days.push(i);
+    const dp   = dailyPrecip[i]    ?? 0;
+    const dt   = dailyTempMax[i]   ?? 20;
+    const dpp  = dailyPrecipProb[i] ?? 100;
+    if (dp < 2 && dt >= 10 && dt <= 30 && dpp < 40) alt_days.push(i);
   }
 
   return {
@@ -209,43 +286,49 @@ const PURPOSE_NOTES: Record<string, string> = {
 
 function precipScore(mm: number | null): number {
   if (mm == null) return 80;
-  if (mm === 0) return 100;
-  if (mm < 1) return 90;
-  if (mm < 5) return 70;
-  if (mm < 15) return 45;
-  if (mm < 30) return 20;
+  if (mm === 0)  return 100;
+  if (mm < 1)    return 90;
+  if (mm < 5)    return 70;
+  if (mm < 15)   return 45;
+  if (mm < 30)   return 20;
   return 5;
 }
 
 function windScore(w: number | null, g: number | null): number {
   const top = Math.max(w ?? 0, g ?? 0);
-  if (top < 10) return 100;
-  if (top < 20) return 90;
-  if (top < 35) return 70;
-  if (top < 50) return 50;
-  if (top < 70) return 25;
+  if (top < 10)  return 100;
+  if (top < 20)  return 90;
+  if (top < 35)  return 70;
+  if (top < 50)  return 50;
+  if (top < 70)  return 25;
   return 5;
 }
 
-function comfortScore(tMax: number | null, tMin: number | null): number {
+// Comfort score now uses perceived temperature (heat index / wind chill) so that
+// 30°C + 85% humidity scores lower than 30°C with low humidity.
+function comfortScore(tMax: number | null, tMin: number | null, humidity = 65): number {
   if (tMax == null || tMin == null) return 70;
-  const avg = (tMax + tMin) / 2;
+  const avg      = (tMax + tMin) / 2;
+  const perceived = calcPerceivedTemp(avg, humidity, 0); // no wind effect for daily avg
   let s = 100;
-  if (avg < 0) s -= 40;
-  else if (avg < 8) s -= 20;
-  else if (avg < 15) s -= 5;
-  else if (avg > 38) s -= 40;
-  else if (avg > 32) s -= 20;
-  else if (avg > 28) s -= 8;
+  if (perceived < 0)        s -= 40;
+  else if (perceived < 8)   s -= 20;
+  else if (perceived < 15)  s -= 5;
+  else if (perceived > 41)  s -= 45;
+  else if (perceived > 38)  s -= 35;
+  else if (perceived > 32)  s -= 20;
+  else if (perceived > 28)  s -= 8;
+  // Extra muggy-discomfort penalty (heat index captures extremes; this captures mild but persistent humidity)
+  if (avg >= 26 && avg <= 35 && humidity > 75) s -= (humidity > 85 ? 12 : 6);
   return Math.max(0, Math.min(100, s));
 }
 
 function visScore(v: number | null): number {
-  if (v == null) return 80;
-  if (v >= 10000) return 100;
-  if (v >= 5000) return 85;
-  if (v >= 2000) return 60;
-  if (v >= 500) return 30;
+  if (v == null)      return 80;
+  if (v >= 10000)     return 100;
+  if (v >= 5000)      return 85;
+  if (v >= 2000)      return 60;
+  if (v >= 500)       return 30;
   return 5;
 }
 
@@ -258,9 +341,9 @@ export async function computeTravelComparison(params: {
   const weights = PURPOSE_WEIGHTS[purpose] ?? PURPOSE_WEIGHTS.travel;
 
   let dayIdx = 0;
-  if (travel_date === "tomorrow") dayIdx = 1;
+  if (travel_date === "tomorrow")                              dayIdx = 1;
   else if (travel_date === "weekend" || travel_date === "saturday") dayIdx = 5;
-  else if (travel_date === "sunday") dayIdx = 6;
+  else if (travel_date === "sunday")                           dayIdx = 6;
 
   const limited = locations.slice(0, 5);
 
@@ -268,28 +351,29 @@ export async function computeTravelComparison(params: {
     limited.map(async (loc) => {
       const url =
         `${OPEN_METEO}?latitude=${loc.lat}&longitude=${loc.lon}` +
-        `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,visibility` +
+        `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,visibility,relative_humidity_2m` +
         `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,weather_code,precipitation_probability_max` +
         `&forecast_days=7${UNITS}`;
 
-      const data = await omFetch(url);
-      const current = (data.current ?? {}) as Record<string, number>;
-      const daily = (data.daily ?? {}) as Record<string, (number | null)[]>;
+      const data    = await omFetch(url);
+      const curr    = (data.current ?? {}) as Record<string, number>;
+      const daily   = (data.daily   ?? {}) as Record<string, (number | null)[]>;
 
       let ps: number, ws: number, cs: number, vs: number, cond: string, tempC: number | null;
 
       if (dayIdx === 0) {
-        ps = precipScore(current.precipitation ?? 0);
-        ws = windScore(current.wind_speed_10m ?? 0, current.wind_gusts_10m ?? 0);
-        cs = comfortScore(current.temperature_2m ?? 20, current.apparent_temperature ?? 20);
-        vs = visScore(current.visibility ?? 10000);
-        cond = classifyWmo(current.weather_code ?? 0);
-        tempC = current.temperature_2m ?? null;
+        const hum = curr.relative_humidity_2m ?? 65;
+        ps  = precipScore(curr.precipitation ?? 0);
+        ws  = windScore(curr.wind_speed_10m ?? 0, curr.wind_gusts_10m ?? 0);
+        cs  = comfortScore(curr.temperature_2m ?? 20, curr.apparent_temperature ?? 20, hum);
+        vs  = visScore(curr.visibility ?? 10000);
+        cond = classifyWmo(curr.weather_code ?? 0);
+        tempC = curr.temperature_2m ?? null;
       } else {
-        ps = precipScore(sl(daily.precipitation_sum, dayIdx, null));
-        ws = windScore(sl(daily.wind_speed_10m_max, dayIdx, null), sl(daily.wind_gusts_10m_max, dayIdx, null));
-        cs = comfortScore(sl(daily.temperature_2m_max, dayIdx, null), sl(daily.temperature_2m_min, dayIdx, null));
-        vs = visScore(null);
+        ps  = precipScore(sl(daily.precipitation_sum, dayIdx, null));
+        ws  = windScore(sl(daily.wind_speed_10m_max, dayIdx, null), sl(daily.wind_gusts_10m_max, dayIdx, null));
+        cs  = comfortScore(sl(daily.temperature_2m_max, dayIdx, null), sl(daily.temperature_2m_min, dayIdx, null));
+        vs  = visScore(null);
         cond = classifyWmo(sl(daily.weather_code, dayIdx, 0) ?? 0);
         const tMax = sl(daily.temperature_2m_max, dayIdx, 20) ?? 20;
         const tMin = sl(daily.temperature_2m_min, dayIdx, 10) ?? 10;
@@ -301,8 +385,7 @@ export async function computeTravelComparison(params: {
           (cs * weights.comfort +
             ps * weights.precipitation +
             ws * weights.wind +
-            vs * weights.visibility) *
-            10,
+            vs * weights.visibility) * 10,
         ) / 10;
 
       return {
@@ -321,7 +404,7 @@ export async function computeTravelComparison(params: {
   );
 
   cityData.sort((a, b) => b.overall_score - a.overall_score || a.name.localeCompare(b.name));
-  const best = cityData[0];
+  const best     = cityData[0];
   const runnerUp = cityData[1] ?? null;
 
   const reasoningParts = [
@@ -340,7 +423,7 @@ export async function computeTravelComparison(params: {
   const groqComparison = await generateComparisonReasoning({
     purpose,
     travel_date,
-    best: { name: best.name, score: Math.round(best.overall_score), condition: best.condition, temp: best.temp_current },
+    best:     { name: best.name, score: Math.round(best.overall_score), condition: best.condition, temp: best.temp_current },
     runnerUp: runnerUp ? { name: runnerUp.name, score: Math.round(runnerUp.overall_score), condition: runnerUp.condition } : null,
     allLocations: cityData.map((c) => ({ name: c.name, score: Math.round(c.overall_score), condition: c.condition })),
   });
@@ -349,12 +432,12 @@ export async function computeTravelComparison(params: {
 
   const ranked_locations: RankedLocation[] = cityData.map((c, i) => {
     const desc: string[] = [];
-    if (c.comfort_score >= 80) desc.push("comfortable temps");
-    else if (c.comfort_score < 50) desc.push("uncomfortable temps");
-    if (c.precipitation_score >= 90) desc.push("dry");
+    if (c.comfort_score >= 80)        desc.push("comfortable temps");
+    else if (c.comfort_score < 50)    desc.push("uncomfortable temps");
+    if (c.precipitation_score >= 90)  desc.push("dry");
     else if (c.precipitation_score < 50) desc.push("wet");
-    if (c.wind_score >= 90) desc.push("calm");
-    else if (c.wind_score < 50) desc.push("windy");
+    if (c.wind_score >= 90)           desc.push("calm");
+    else if (c.wind_score < 50)       desc.push("windy");
     return {
       rank: i + 1,
       name: c.name,
@@ -387,16 +470,16 @@ const ACTIVITY_CONFIGS: Record<string, {
   uv: boolean;
   vis: boolean;
 }> = {
-  farming:         { ideal: [5, 30],   max_precip: 5,   max_wind: 30,  uv: false, vis: false },
-  outdoor_sports:  { ideal: [10, 28],  max_precip: 2,   max_wind: 25,  uv: true,  vis: false },
-  construction:    { ideal: [2, 35],   max_precip: 10,  max_wind: 50,  uv: false, vis: false },
-  camping:         { ideal: [8, 28],   max_precip: 5,   max_wind: 35,  uv: true,  vis: true  },
-  photography:     { ideal: [-5, 40],  max_precip: 1,   max_wind: 20,  uv: false, vis: true  },
-  travel:          { ideal: [0, 38],   max_precip: 8,   max_wind: 60,  uv: false, vis: true  },
-  marathon_running:{ ideal: [10, 20],  max_precip: 5,   max_wind: 20,  uv: true,  vis: false },
-  cycling:         { ideal: [8, 30],   max_precip: 3,   max_wind: 30,  uv: true,  vis: false },
-  beach:           { ideal: [24, 35],  max_precip: 1,   max_wind: 30,  uv: true,  vis: false },
-  skiing:          { ideal: [-15, 2],  max_precip: 999, max_wind: 45,  uv: true,  vis: true  },
+  farming:         { ideal: [5,  30], max_precip: 5,   max_wind: 30,  uv: false, vis: false },
+  outdoor_sports:  { ideal: [10, 28], max_precip: 2,   max_wind: 25,  uv: true,  vis: false },
+  construction:    { ideal: [2,  35], max_precip: 10,  max_wind: 50,  uv: false, vis: false },
+  camping:         { ideal: [8,  28], max_precip: 5,   max_wind: 35,  uv: true,  vis: true  },
+  photography:     { ideal: [-5, 40], max_precip: 1,   max_wind: 20,  uv: false, vis: true  },
+  travel:          { ideal: [0,  38], max_precip: 8,   max_wind: 60,  uv: false, vis: true  },
+  marathon_running:{ ideal: [10, 20], max_precip: 5,   max_wind: 20,  uv: true,  vis: false },
+  cycling:         { ideal: [8,  30], max_precip: 3,   max_wind: 30,  uv: true,  vis: false },
+  beach:           { ideal: [24, 35], max_precip: 1,   max_wind: 30,  uv: true,  vis: false },
+  skiing:          { ideal: [-15, 2], max_precip: 999, max_wind: 45,  uv: true,  vis: true  },
 };
 
 const SAFETY_TIPS: Record<string, string[]> = {
@@ -435,37 +518,42 @@ export async function computeActivityRisk(params: {
 }): Promise<ActivityAssessment> {
   const { lat, lon, location_name, target_date, duration_hours } = params;
   const actKey = params.activity.toLowerCase().replace(/ /g, "_");
-  const cfg = ACTIVITY_CONFIGS[actKey] ?? ACTIVITY_CONFIGS.outdoor_sports;
+  const cfg    = ACTIVITY_CONFIGS[actKey] ?? ACTIVITY_CONFIGS.outdoor_sports;
 
   let dayIdx = 0;
-  if (target_date === "tomorrow") dayIdx = 1;
-  else if (/^\d+$/.test(target_date)) dayIdx = Math.min(parseInt(target_date), 6);
+  if (target_date === "tomorrow")         dayIdx = 1;
+  else if (/^\d+$/.test(target_date))    dayIdx = Math.min(parseInt(target_date), 6);
 
   const url =
     `${OPEN_METEO}?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,relative_humidity_2m,visibility,uv_index` +
+    `&hourly=relative_humidity_2m,precipitation_probability` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,weather_code,precipitation_probability_max,uv_index_max,sunrise,sunset` +
     `&forecast_days=7${UNITS}`;
 
-  const data = await omFetch(url);
-  const current = (data.current ?? {}) as Record<string, number>;
-  const daily = (data.daily ?? {}) as Record<string, (number | string | null)[]>;
+  const data      = await omFetch(url);
+  const current   = (data.current  ?? {}) as Record<string, number>;
+  const daily     = (data.daily    ?? {}) as Record<string, (number | string | null)[]>;
+  const hourlyRaw = (data.hourly   ?? {}) as Record<string, (number | null)[]>;
+
+  const hHumidity    = hourlyRaw.relative_humidity_2m    ?? [];
+  const hPrecipProb  = hourlyRaw.precipitation_probability ?? [];
 
   let temp: number, precip: number, wind: number, gusts: number,
       vis: number, humidity: number, uv: number, wcode: number,
       sunrise: string, sunset: string;
 
   if (dayIdx === 0) {
-    temp     = current.temperature_2m ?? 20;
-    precip   = current.precipitation ?? 0;
-    wind     = current.wind_speed_10m ?? 0;
-    gusts    = current.wind_gusts_10m ?? 0;
-    vis      = current.visibility ?? 10000;
-    humidity = current.relative_humidity_2m ?? 50;
-    uv       = current.uv_index ?? 0;
-    wcode    = current.weather_code ?? 0;
+    temp     = current.temperature_2m        ?? 20;
+    precip   = current.precipitation         ?? 0;
+    wind     = current.wind_speed_10m        ?? 0;
+    gusts    = current.wind_gusts_10m        ?? 0;
+    vis      = current.visibility            ?? 10000;
+    humidity = current.relative_humidity_2m  ?? 50;
+    uv       = current.uv_index              ?? 0;
+    wcode    = current.weather_code          ?? 0;
     sunrise  = String(sl(daily.sunrise as string[], 0, "06:00"));
-    sunset   = String(sl(daily.sunset as string[], 0, "20:00"));
+    sunset   = String(sl(daily.sunset  as string[], 0, "20:00"));
   } else {
     const tMax = (sl(daily.temperature_2m_max as number[], dayIdx, 20)) ?? 20;
     const tMin = (sl(daily.temperature_2m_min as number[], dayIdx, 10)) ?? 10;
@@ -474,28 +562,57 @@ export async function computeActivityRisk(params: {
     wind     = (sl(daily.wind_speed_10m_max as number[], dayIdx, 0)) ?? 0;
     gusts    = (sl(daily.wind_gusts_10m_max as number[], dayIdx, 0)) ?? 0;
     vis      = 8000;
-    humidity = 60;
     uv       = (sl(daily.uv_index_max as number[], dayIdx, 0)) ?? 0;
-    wcode    = (sl(daily.weather_code as number[], dayIdx, 0)) ?? 0;
+    wcode    = (sl(daily.weather_code  as number[], dayIdx, 0)) ?? 0;
     sunrise  = String(sl(daily.sunrise as string[], dayIdx, "06:00"));
-    sunset   = String(sl(daily.sunset as string[], dayIdx, "20:00"));
+    sunset   = String(sl(daily.sunset  as string[], dayIdx, "20:00"));
+    // Average hourly humidity for the target day
+    const startH = dayIdx * 24;
+    const dayHums = hHumidity.slice(startH, startH + 24).filter((v): v is number => v != null);
+    humidity = dayHums.length > 0
+      ? dayHums.reduce((a, b) => a + b, 0) / dayHums.length
+      : 60;
   }
+
+  // Average precipitation probability over the target day's hours
+  const startH = dayIdx * 24;
+  const dayPrecipProbs = hPrecipProb.slice(startH, startH + 24).filter((v): v is number => v != null);
+  const avgPrecipProb = dayPrecipProbs.length > 0
+    ? dayPrecipProbs.reduce((a, b) => a + b, 0) / dayPrecipProbs.length
+    : (sl(daily.precipitation_probability_max as number[], dayIdx, 0) ?? 0);
+
+  // Perceived temperature (heat index or wind chill)
+  const perceivedTemp = calcPerceivedTemp(temp, humidity, wind);
+  const heatIndex     = calcHeatIndex(temp, humidity);
 
   const [idealLo, idealHi] = cfg.ideal;
   let penalty = 0;
   const concerns: string[] = [];
 
-  if (temp < idealLo) {
-    penalty += Math.min(40, (idealLo - temp) * 3);
-    concerns.push(`Temperature ${Math.round(temp)}°C is below ideal range (${idealLo}°C–${idealHi}°C)`);
-  } else if (temp > idealHi) {
-    penalty += Math.min(40, (temp - idealHi) * 3);
-    concerns.push(`Temperature ${Math.round(temp)}°C exceeds ideal range (${idealLo}°C–${idealHi}°C)`);
+  // Use perceived temp for threshold comparison — this is the critical change
+  // A marathon runner at 28°C + 85% humidity faces a perceived 38°C: UNSUITABLE
+  if (perceivedTemp < idealLo) {
+    penalty += Math.min(40, (idealLo - perceivedTemp) * 3);
+    concerns.push(`Perceived temperature ${Math.round(perceivedTemp)}°C is below ideal range (${idealLo}°C–${idealHi}°C)`);
+  } else if (perceivedTemp > idealHi) {
+    penalty += Math.min(40, (perceivedTemp - idealHi) * 3);
+    const note = heatIndex > temp + 1 ? ` (heat index: ${Math.round(heatIndex)}°C)` : "";
+    concerns.push(`Perceived temperature ${Math.round(perceivedTemp)}°C${note} exceeds ideal range (${idealLo}°C–${idealHi}°C)`);
   }
 
   if (precip > cfg.max_precip) {
     penalty += Math.min(35, (precip - cfg.max_precip) * 4);
     concerns.push(`Precipitation ${precip.toFixed(1)} mm exceeds threshold (${cfg.max_precip} mm)`);
+  }
+
+  // Rain probability penalty (scaled by activity's precip sensitivity)
+  const precipSensitivity = cfg.max_precip <= 2 ? 0.8 : cfg.max_precip <= 5 ? 0.5 : 0.3;
+  const probPenalty = precipProbPenalty(avgPrecipProb) * precipSensitivity;
+  if (probPenalty > 0) {
+    penalty += probPenalty;
+    if (avgPrecipProb > 60 && !concerns.some(c => c.toLowerCase().includes('precipitation'))) {
+      concerns.push(`${Math.round(avgPrecipProb)}% chance of rain during activity`);
+    }
   }
 
   const effWind = Math.max(wind, gusts * 0.7);
@@ -515,16 +632,16 @@ export async function computeActivityRisk(params: {
   }
 
   const wc = Math.round(wcode);
-  if (wc >= 95) { penalty += 50; concerns.push("Thunderstorm conditions present"); }
-  else if (wc >= 80) { penalty += 20; concerns.push("Heavy rain showers expected"); }
-  else if (wc >= 71 && actKey !== "skiing") { penalty += 25; concerns.push("Snowfall expected"); }
+  if (wc >= 95)                              { penalty += 50; concerns.push("Thunderstorm conditions present"); }
+  else if (wc >= 80)                         { penalty += 20; concerns.push("Heavy rain showers expected"); }
+  else if (wc >= 71 && actKey !== "skiing")  { penalty += 25; concerns.push("Snowfall expected"); }
 
   const risk_score = Math.max(0, Math.min(100, 100 - penalty));
-  let risk_level: "LOW" | "MEDIUM" | "HIGH";
+  let risk_level:  "LOW" | "MEDIUM" | "HIGH";
   let suitability: "SUITABLE" | "MARGINAL" | "UNSUITABLE";
-  if (risk_score >= 75) { risk_level = "LOW"; suitability = "SUITABLE"; }
-  else if (risk_score >= 50) { risk_level = "MEDIUM"; suitability = "MARGINAL"; }
-  else { risk_level = "HIGH"; suitability = "UNSUITABLE"; }
+  if (risk_score >= 75)       { risk_level = "LOW";    suitability = "SUITABLE"; }
+  else if (risk_score >= 50)  { risk_level = "MEDIUM"; suitability = "MARGINAL"; }
+  else                        { risk_level = "HIGH";   suitability = "UNSUITABLE"; }
 
   const actLabel = actKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   let templateRecommendation: string;
@@ -536,14 +653,14 @@ export async function computeActivityRisk(params: {
     templateRecommendation = `Conditions are poor for ${actLabel} in ${location_name}. Consider rescheduling your ${duration_hours}-hour session.`;
 
   const groqActivity = await generateActivityReasoning({
-    location: location_name,
-    activity: actLabel,
-    temp: Math.round(temp),
+    location:       location_name,
+    activity:       actLabel,
+    temp:           Math.round(temp),
     precip,
-    wind: Math.round(wind),
-    gusts: Math.round(gusts),
+    wind:           Math.round(wind),
+    gusts:          Math.round(gusts),
     uv,
-    humidity: Math.round(humidity),
+    humidity:       Math.round(humidity),
     suitability,
     risk_level,
     risk_score,
@@ -558,11 +675,11 @@ export async function computeActivityRisk(params: {
   let best_time_window: string;
   try {
     const srStr = sunrise.split("T").pop()?.slice(0, 5) ?? "06:00";
-    const ssStr = sunset.split("T").pop()?.slice(0, 5) ?? "20:00";
+    const ssStr = sunset.split("T").pop()?.slice(0, 5)  ?? "20:00";
     if (wind > 30 || precip > 2)
       best_time_window = `Early morning (${srStr}–${srStr.slice(0, 2)}:00+2h) before conditions deteriorate`;
-    else if (uv > 7)
-      best_time_window = `Morning (${srStr}–11:00) or late afternoon (16:00–${ssStr}) to avoid peak UV`;
+    else if (uv > 7 || heatIndex > 35)
+      best_time_window = `Morning (${srStr}–11:00) or late afternoon (16:00–${ssStr}) to avoid peak heat and UV`;
     else
       best_time_window = `Any time between ${srStr} and ${ssStr}`;
   } catch {
@@ -576,20 +693,20 @@ export async function computeActivityRisk(params: {
     risk_score,
     recommendation,
     key_concerns: concerns.slice(0, 4),
-    safety_tips: (SAFETY_TIPS[actKey] ?? ["Check local conditions", "Dress appropriately"]).slice(0, 3),
+    safety_tips:  (SAFETY_TIPS[actKey] ?? ["Check local conditions", "Dress appropriately"]).slice(0, 3),
     best_time_window,
     gear_suggestions: (GEAR[actKey] ?? ["Weather-appropriate clothing"]).slice(0, 3),
     location: location_name,
     target_date,
     duration_hours,
     metrics: {
-      temp_c: Math.round(temp * 10) / 10,
-      precip_mm: Math.round(precip * 10) / 10,
-      wind_kmh: Math.round(wind),
-      gusts_kmh: Math.round(gusts),
+      temp_c:       Math.round(temp * 10) / 10,
+      precip_mm:    Math.round(precip * 10) / 10,
+      wind_kmh:     Math.round(wind),
+      gusts_kmh:    Math.round(gusts),
       visibility_m: Math.round(vis),
       humidity_pct: Math.round(humidity),
-      uv_index: Math.round(uv * 10) / 10,
+      uv_index:     Math.round(uv * 10) / 10,
     },
   };
 }
@@ -632,21 +749,26 @@ export async function computeWeatherAlerts(params: {
 
   const url =
     `${OPEN_METEO}?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,visibility,pressure_msl,uv_index,snowfall` +
+    `&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,visibility,pressure_msl,uv_index,snowfall` +
     `&forecast_days=${forecastDays}${UNITS}`;
 
-  const data = await omFetch(url);
+  const data   = await omFetch(url);
   const hourly = (data.hourly ?? {}) as Record<string, (number | null)[]>;
 
-  const hTemp   = (hourly.temperature_2m   ?? []).slice(0, hours);
-  const hWcode  = (hourly.weather_code     ?? []).slice(0, hours);
-  const hWind   = (hourly.wind_speed_10m   ?? []).slice(0, hours);
-  const hGusts  = (hourly.wind_gusts_10m   ?? []).slice(0, hours);
-  const hPrecip = (hourly.precipitation    ?? []).slice(0, hours);
-  const hVis    = (hourly.visibility       ?? []).slice(0, hours);
-  const hPres   = (hourly.pressure_msl     ?? []).slice(0, hours);
-  const hUv     = (hourly.uv_index         ?? []).slice(0, hours);
-  const hSnow   = (hourly.snowfall         ?? []).slice(0, hours);
+  const hTemp     = (hourly.temperature_2m    ?? []).slice(0, hours);
+  const hHumidity = (hourly.relative_humidity_2m ?? []).slice(0, hours);
+  const hWcode    = (hourly.weather_code      ?? []).slice(0, hours);
+  const hWind     = (hourly.wind_speed_10m    ?? []).slice(0, hours);
+  const hGusts    = (hourly.wind_gusts_10m    ?? []).slice(0, hours);
+  const hPrecip   = (hourly.precipitation     ?? []).slice(0, hours);
+  const hVis      = (hourly.visibility        ?? []).slice(0, hours);
+  const hPres     = (hourly.pressure_msl      ?? []).slice(0, hours);
+  const hUv       = (hourly.uv_index          ?? []).slice(0, hours);
+  const hSnow     = (hourly.snowfall          ?? []).slice(0, hours);
+
+  // Per-hour heat index using actual humidity — catches dangerous tropical heat
+  // even when raw temperature stays below the 38°C alert threshold
+  const hHeatIdx = hTemp.map((t, i) => calcHeatIndex(t ?? 20, hHumidity[i] ?? 60));
 
   const sm = (arr: (number | null)[]) => Math.max(...arr.filter((x): x is number => x != null), 0);
   const sn = (arr: (number | null)[]) => Math.min(...arr.filter((x): x is number => x != null), Infinity);
@@ -665,9 +787,20 @@ export async function computeWeatherAlerts(params: {
   if (tp > 50 || mp > 15)
     rawAlerts.push({ type: "heavy_precipitation", severity: tp > 100 || mp > 30 ? "EMERGENCY" : "WARNING", affected_hours: iw(hPrecip, (p) => p > 5), peak_value: Math.round(mp * 10) / 10 });
 
-  const mxT = sm(hTemp);
-  if (mxT > 38)
-    rawAlerts.push({ type: "extreme_heat", severity: mxT > 43 ? "EMERGENCY" : "WARNING", affected_hours: iw(hTemp, (t) => t > 38), peak_value: Math.round(mxT * 10) / 10 });
+  // Extreme heat: trigger on raw temp OR heat index — catches high-humidity days
+  // where raw temp is 36°C but heat index is 41°C+ (dangerous for outdoor activity)
+  const mxT  = sm(hTemp);
+  const mxHI = sm(hHeatIdx);
+  const heatTrigger = mxT > 38 || mxHI > 38;
+  if (heatTrigger) {
+    const peakHeat = Math.max(mxT, mxHI);
+    rawAlerts.push({
+      type: "extreme_heat",
+      severity: peakHeat > 43 ? "EMERGENCY" : "WARNING",
+      affected_hours: hHeatIdx.map((hi, i) => (hi >= 38 || (hTemp[i] ?? 0) >= 38) ? i : -1).filter(i => i >= 0),
+      peak_value: Math.round(peakHeat * 10) / 10,
+    });
+  }
 
   const mnT = sn(hTemp);
   if (mnT < -15)
@@ -706,18 +839,17 @@ export async function computeWeatherAlerts(params: {
     };
   }
 
-
-  const sevs = rawAlerts.map((a) => a.severity);
+  const sevs    = rawAlerts.map((a) => a.severity);
   const overall = sevs.includes("EMERGENCY") ? "EMERGENCY" : sevs.includes("WARNING") ? "WARNING" : "WATCH";
 
   const alerts: WeatherAlert[] = rawAlerts.map((a, i) => {
-    const t = a.type;
-    const pv = a.peak_value;
+    const t   = a.type;
+    const pv  = a.peak_value;
     const aff = a.affected_hours;
     const descMap: Record<string, string> = {
       thunderstorm:        `Thunderstorm activity detected with WMO code ${Math.round(pv)} across ${aff.length} affected hours.`,
       heavy_precipitation: `Total precipitation of ${Math.round(ss(hPrecip))} mm expected with peak hourly rate of ${pv} mm.`,
-      extreme_heat:        `Temperatures reaching ${pv}°C detected across ${aff.length} hours.`,
+      extreme_heat:        `Heat index reaching ${pv}°C across ${aff.length} hours. Combined temperature and humidity create dangerous heat stress conditions.`,
       extreme_cold:        `Temperatures dropping to ${pv}°C detected across ${aff.length} hours.`,
       high_wind:           `Wind gusts up to ${pv} km/h expected across ${aff.length} hours.`,
       dense_fog:           `Visibility dropping to ${Math.round(pv)} m detected across ${aff.length} hours.`,
@@ -738,15 +870,15 @@ export async function computeWeatherAlerts(params: {
     };
   });
 
-  const types = rawAlerts.map((a) => a.type.replace(/_/g, " "));
+  const types           = rawAlerts.map((a) => a.type.replace(/_/g, " "));
   const templateSummary = `${overall} level alert for ${location_name}. Active conditions: ${types.join(", ")}. Covering the next ${hours} hours.`;
 
   const groqAlert = await generateAlertSummary({
-    location: location_name,
+    location:         location_name,
     hours,
     overall_severity: overall,
-    alert_types: types,
-    peak_values: rawAlerts.map((a) => `${a.type.replace(/_/g, " ")}: ${a.peak_value}`),
+    alert_types:      types,
+    peak_values:      rawAlerts.map((a) => `${a.type.replace(/_/g, " ")}: ${a.peak_value}`),
   });
 
   return {
