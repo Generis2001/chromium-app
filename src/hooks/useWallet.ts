@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { usePrivy, useWallets, useLogout, useConnectOrCreateWallet } from '@privy-io/react-auth'
+import { useState, useCallback, useEffect } from 'react'
 import { createClient, chains } from 'genlayer-js'
-import { setActiveProvider } from '@/lib/privy/provider-store'
 
-const STUDIONET_CHAIN_ID_HEX = '0xf22f'
+const STUDIONET_CHAIN_ID = '0xf22f' // 61999
 
 const STUDIONET_CONFIG = {
   chainId: '0xF22F',
@@ -45,114 +43,137 @@ async function fetchGenBalance(address: string): Promise<string | null> {
 }
 
 export function useWallet() {
-  const { authenticated } = usePrivy()
-  const { wallets } = useWallets()
-  const { logout } = useLogout()
-  const { connectOrCreateWallet } = useConnectOrCreateWallet()
+  const [state, setState] = useState<WalletState>({
+    connected: false,
+    address: null,
+    balanceGen: null,
+    chainId: null,
+    onCorrectChain: false,
+    connecting: false,
+    error: null,
+  })
 
-  const [switching, setSwitching] = useState(false)
-  const [balanceGen, setBalanceGen] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const hasMetaMask = typeof window !== 'undefined' && Boolean(window.ethereum)
 
-  const wallet = wallets[0] ?? null
-  const address = wallet?.address ?? null
-
-  // Privy chainId format: "eip155:61999" — normalise to hex
-  const rawChainId = wallet?.chainId ?? null
-  const chainIdHex = rawChainId
-    ? '0x' + parseInt(rawChainId.split(':').pop() ?? rawChainId, 10).toString(16)
-    : null
-  const onCorrectChain = chainIdHex === STUDIONET_CHAIN_ID_HEX
-  const connected = !!(authenticated && address)
-
-  // Keep provider store in sync whenever wallet changes
+  // ── on mount: check if already connected, listen for changes ─────────────
   useEffect(() => {
-    if (!wallet) { setActiveProvider(null); return }
-    void wallet.getEthereumProvider()
-      .then((p) => setActiveProvider(p))
-      .catch(() => setActiveProvider(null))
-  }, [wallet])
+    if (typeof window === 'undefined' || !window.ethereum) return
 
-  // Fetch GEN balance when address changes
-  useEffect(() => {
-    if (address) {
-      void fetchGenBalance(address).then(setBalanceGen)
-    } else {
-      setBalanceGen(null)
-    }
-  }, [address])
-
-  // ── connect — opens Privy modal (synchronous) ─────────────────────────────
-  const connect = useCallback(() => {
-    setError(null)
-    connectOrCreateWallet()
-  }, [connectOrCreateWallet])
-
-  // ── switch to studionet ───────────────────────────────────────────────────
-  const switchToStudionet = useCallback(async () => {
-    if (!wallet) return
-    setError(null)
-    setSwitching(true)
-    try {
-      const provider = await wallet.getEthereumProvider()
+    const checkConnected = async () => {
       try {
-        await provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: STUDIONET_CONFIG.chainId }],
-        })
+        const accounts = await window.ethereum!.request({ method: 'eth_accounts' }) as string[]
+        if (accounts.length > 0) {
+          const address = accounts[0]
+          const chainId = (await window.ethereum!.request({ method: 'eth_chainId' })) as string
+          const onCorrectChain = chainId.toLowerCase() === STUDIONET_CHAIN_ID
+          setState(s => ({ ...s, connected: true, address, chainId, onCorrectChain }))
+          void fetchGenBalance(address).then(bal => setState(s => ({ ...s, balanceGen: bal })))
+        }
+      } catch { /* not connected */ }
+    }
+
+    void checkConnected()
+
+    const onAccountsChanged = (accounts: unknown) => {
+      const accs = accounts as string[]
+      if (accs.length === 0) {
+        setState({ connected: false, address: null, balanceGen: null, chainId: null, onCorrectChain: false, connecting: false, error: null })
+      } else {
+        setState(s => ({ ...s, connected: true, address: accs[0] }))
+        void fetchGenBalance(accs[0]).then(bal => setState(s => ({ ...s, balanceGen: bal })))
+      }
+    }
+    const onChainChanged = (chainId: unknown) => {
+      const id = chainId as string
+      setState(s => ({ ...s, chainId: id, onCorrectChain: id.toLowerCase() === STUDIONET_CHAIN_ID }))
+    }
+
+    window.ethereum.on('accountsChanged', onAccountsChanged)
+    window.ethereum.on('chainChanged', onChainChanged)
+    return () => {
+      window.ethereum?.removeListener('accountsChanged', onAccountsChanged)
+      window.ethereum?.removeListener('chainChanged', onChainChanged)
+    }
+  }, [])
+
+  // ── connect ───────────────────────────────────────────────────────────────
+  const connect = useCallback(async () => {
+    if (typeof window === 'undefined' || !window.ethereum) {
+      setState(s => ({ ...s, error: 'MetaMask not found. Please install MetaMask.' }))
+      return
+    }
+    setState(s => ({ ...s, connecting: true, error: null }))
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[]
+      const address = accounts[0]
+      try {
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: STUDIONET_CONFIG.chainId }] })
       } catch (switchErr: unknown) {
-        const code = (switchErr as { code?: number }).code
-        if (code === 4902) {
-          await provider.request({
-            method: 'wallet_addEthereumChain',
-            params: [STUDIONET_CONFIG],
-          })
+        if ((switchErr as { code?: number }).code === 4902) {
+          await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [STUDIONET_CONFIG] })
         } else {
           throw switchErr
         }
       }
+      const chainId = (await window.ethereum.request({ method: 'eth_chainId' })) as string
+      const onCorrectChain = chainId.toLowerCase() === STUDIONET_CHAIN_ID
+      setState(s => ({ ...s, connected: true, address, chainId, onCorrectChain, connecting: false, error: null }))
+      void fetchGenBalance(address).then(bal => setState(s => ({ ...s, balanceGen: bal })))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Switch failed')
-    } finally {
-      setSwitching(false)
+      setState(s => ({ ...s, connecting: false, error: err instanceof Error ? err.message : 'Connection failed' }))
     }
-  }, [wallet])
+  }, [])
+
+  // ── switch to studionet ───────────────────────────────────────────────────
+  const switchToStudionet = useCallback(async () => {
+    if (typeof window === 'undefined' || !window.ethereum) return
+    setState(s => ({ ...s, connecting: true, error: null }))
+    try {
+      try {
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: STUDIONET_CONFIG.chainId }] })
+      } catch (switchErr: unknown) {
+        if ((switchErr as { code?: number }).code === 4902) {
+          await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [STUDIONET_CONFIG] })
+        } else {
+          throw switchErr
+        }
+      }
+      const chainId = (await window.ethereum.request({ method: 'eth_chainId' })) as string
+      setState(s => ({ ...s, chainId, onCorrectChain: chainId.toLowerCase() === STUDIONET_CHAIN_ID, connecting: false }))
+    } catch (err) {
+      setState(s => ({ ...s, connecting: false, error: err instanceof Error ? err.message : 'Switch failed' }))
+    }
+  }, [])
 
   // ── disconnect ────────────────────────────────────────────────────────────
   const disconnect = useCallback(async () => {
-    setActiveProvider(null)
-    await logout()
-  }, [logout])
-
-  // ── refresh balance ───────────────────────────────────────────────────────
-  const refreshBalance = useCallback(() => {
-    if (address) void fetchGenBalance(address).then(setBalanceGen)
-  }, [address])
+    try {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        await window.ethereum.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] })
+      }
+    } catch { /* some wallets don't support revoke */ }
+    setState({ connected: false, address: null, balanceGen: null, chainId: null, onCorrectChain: false, connecting: false, error: null })
+  }, [])
 
   // ── genlayer client ───────────────────────────────────────────────────────
   const getClient = useCallback(() => {
-    if (!address || !wallet) return null
+    if (typeof window === 'undefined' || !window.ethereum || !state.address) return null
     return createClient({
       chain: chains.studionet,
-      account: address as `0x${string}`,
-      provider: {
-        request: async (args: { method: string; params?: unknown[] }) => {
-          const p = await wallet.getEthereumProvider()
-          return p.request(args)
-        },
-      },
+      account: state.address as `0x${string}`,
+      provider: window.ethereum,
     })
-  }, [address, wallet])
+  }, [state.address])
+
+  const refreshBalance = useCallback(() => {
+    if (state.address) {
+      void fetchGenBalance(state.address).then(bal => setState(s => ({ ...s, balanceGen: bal })))
+    }
+  }, [state.address])
 
   return {
-    connected,
-    address,
-    balanceGen,
-    chainId: chainIdHex,
-    onCorrectChain,
-    connecting: switching,  // only true during chain switch, never during modal open
-    error,
-    hasMetaMask: typeof window !== 'undefined' && Boolean(window.ethereum),
+    ...state,
+    hasMetaMask,
     connect,
     switchToStudionet,
     disconnect,
