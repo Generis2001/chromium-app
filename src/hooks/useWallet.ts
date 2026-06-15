@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { usePrivy, useWallets, useLogout } from '@privy-io/react-auth'
+import { usePrivy, useWallets, useLogout, useConnectOrCreateWallet } from '@privy-io/react-auth'
 import { createClient, chains } from 'genlayer-js'
 import { setActiveProvider } from '@/lib/privy/provider-store'
 
@@ -45,9 +45,10 @@ async function fetchGenBalance(address: string): Promise<string | null> {
 }
 
 export function useWallet() {
-  const { login, authenticated } = usePrivy()
+  const { authenticated } = usePrivy()
   const { wallets } = useWallets()
   const { logout } = useLogout()
+  const { connectOrCreateWallet } = useConnectOrCreateWallet()
 
   const [switching, setSwitching] = useState(false)
   const [balanceGen, setBalanceGen] = useState<string | null>(null)
@@ -84,8 +85,8 @@ export function useWallet() {
   // ── connect — opens Privy modal (synchronous) ─────────────────────────────
   const connect = useCallback(() => {
     setError(null)
-    login()
-  }, [login])
+    connectOrCreateWallet()
+  }, [connectOrCreateWallet])
 
   // ── switch to studionet ───────────────────────────────────────────────────
   const switchToStudionet = useCallback(async () => {
