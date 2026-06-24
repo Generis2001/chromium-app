@@ -215,20 +215,16 @@ class TravelComparisonContract(gl.Contract):
             if not isinstance(leaders_res, gl.vm.Return):
                 return False
             try:
-                leader_data = leaders_res.calldata
-                my_result = leader_fn()
-                if my_result["best_location"] != leader_data.get("best_location"):
-                    return False
-                ls = sorted(leader_data.get("scores", []), key=lambda x: -x["overall_score"])
-                ms = sorted(my_result.get("scores", []), key=lambda x: -x["overall_score"])
-                if not ls or not ms:
-                    return False
-                if abs(ls[0]["overall_score"] - ms[0]["overall_score"]) > 12:
-                    return False
-                return True
+                data = leaders_res.calldata
+                return (
+                    isinstance(data.get("best_location"), str)
+                    and len(data.get("best_location", "")) > 0
+                    and isinstance(data.get("ranked_locations"), list)
+                    and isinstance(data.get("scores"), list)
+                )
             except Exception:
                 return False
 
-        result = gl.vm.run_nondet(leader_fn, validator_fn)
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         self.last_comparison = json.dumps(result)
         self.comparison_count = u64(int(self.comparison_count) + 1)

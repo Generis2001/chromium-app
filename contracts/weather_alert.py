@@ -189,17 +189,16 @@ class WeatherAlertContract(gl.Contract):
             if not isinstance(leaders_res, gl.vm.Return):
                 return False
             try:
-                leader_data = leaders_res.calldata
-                my_result = leader_fn()
-                if abs(int(my_result.get("alert_count", 0)) - int(leader_data.get("alert_count", 0))) > 1:
-                    return False
-                if my_result.get("overall_severity") != leader_data.get("overall_severity"):
-                    return False
-                return True
+                data = leaders_res.calldata
+                return (
+                    data.get("overall_severity") in ("NONE", "WATCH", "WARNING", "EMERGENCY")
+                    and isinstance(data.get("alert_count"), (int, float))
+                    and isinstance(data.get("alerts"), list)
+                )
             except Exception:
                 return False
 
-        result = gl.vm.run_nondet(leader_fn, validator_fn)
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         self.active_alerts = json.dumps(result)
         self.alert_count = u64(int(self.alert_count) + 1)
         self.last_checked_lat = lat

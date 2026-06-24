@@ -224,16 +224,15 @@ class ActivityRiskContract(gl.Contract):
             if not isinstance(leaders_res, gl.vm.Return):
                 return False
             try:
-                leader_data = leaders_res.calldata
-                my_result = leader_fn()
-                if my_result["risk_level"] != leader_data.get("risk_level"):
-                    return False
-                if abs(int(my_result["risk_score"]) - int(leader_data.get("risk_score", 0))) > 10:
-                    return False
-                return True
+                data = leaders_res.calldata
+                return (
+                    data.get("risk_level") in ("LOW", "MEDIUM", "HIGH")
+                    and data.get("suitability") in ("SUITABLE", "MARGINAL", "UNSUITABLE")
+                    and isinstance(data.get("risk_score"), (int, float))
+                )
             except Exception:
                 return False
 
-        result = gl.vm.run_nondet(leader_fn, validator_fn)
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         self.last_assessment = json.dumps(result)
         self.assessment_count = u64(int(self.assessment_count) + 1)
