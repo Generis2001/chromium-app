@@ -234,6 +234,6 @@ class ActivityRiskContract(gl.Contract):
             except Exception:
                 return False
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        result = gl.vm.run_nondet(leader_fn, validator_fn)
         self.last_assessment = json.dumps(result)
         self.assessment_count = u64(int(self.assessment_count) + 1)

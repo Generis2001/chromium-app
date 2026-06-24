@@ -199,7 +199,7 @@ class WeatherAlertContract(gl.Contract):
             except Exception:
                 return False
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        result = gl.vm.run_nondet(leader_fn, validator_fn)
         self.active_alerts = json.dumps(result)
         self.alert_count = u64(int(self.alert_count) + 1)
         self.last_checked_lat = lat

@@ -229,6 +229,6 @@ class TravelComparisonContract(gl.Contract):
             except Exception:
                 return False
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        result = gl.vm.run_nondet(leader_fn, validator_fn)
         self.last_comparison = json.dumps(result)
         self.comparison_count = u64(int(self.comparison_count) + 1)
