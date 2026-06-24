@@ -52,7 +52,7 @@ class WeatherAlertContract(gl.Contract):
     def get_alert_count(self) -> u64:
         return self.alert_count
 
-    @gl.public.write(payable=True)
+    @gl.public.write.payable
     def check_alerts(self, lat: str, lon: str, location_name: str, lookahead_hours: str) -> None:
         def leader_fn():
             hours = int(lookahead_hours) if lookahead_hours.isdigit() else 24

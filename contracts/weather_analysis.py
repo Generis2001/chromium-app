@@ -27,7 +27,7 @@ class WeatherAnalysisContract(gl.Contract):
     def get_count(self) -> u64:
         return self.analysis_count
 
-    @gl.public.write(payable=True)
+    @gl.public.write.payable
     def analyze_weather(self, lat: str, lon: str, query: str, location_name: str) -> None:
         def leader_fn():
             url = (

@@ -19,7 +19,7 @@ class TravelComparisonContract(gl.Contract):
     def get_comparison(self) -> str:
         return self.last_comparison
 
-    @gl.public.write(payable=True)
+    @gl.public.write.payable
     def compare_locations(self, locations_json: str, purpose: str, travel_date: str) -> None:
         PURPOSE_WEIGHTS = {
             "travel":        {"comfort": 0.35, "precipitation": 0.30, "wind": 0.20, "visibility": 0.15},
