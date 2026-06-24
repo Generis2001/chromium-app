@@ -27,7 +27,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} h-full`}
     >
-      <body className="font-sans antialiased text-slate-900 dark:text-slate-100 min-h-screen">
+      <body suppressHydrationWarning className="font-sans antialiased text-slate-900 dark:text-slate-100 min-h-screen">
         <Providers>
           {/* Watermark */}
           <div

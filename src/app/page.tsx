@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
@@ -99,6 +99,11 @@ const PREREQS = [
 export default function LandingPage() {
   const router = useRouter()
   const { connected, onCorrectChain, connecting, error, hasMetaMask, connect, switchToStudionet } = useWallet()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (connected && onCorrectChain) {
@@ -111,7 +116,7 @@ export default function LandingPage() {
       ? 'inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-bold text-lg transition-all duration-300'
       : 'inline-flex items-center gap-3 px-8 py-4 rounded-2xl font-semibold text-base transition-all duration-300'
 
-    if (!hasMetaMask) {
+    if (!mounted || !hasMetaMask) {
       return (
         <a
           href="https://metamask.io/download/"
