@@ -19,7 +19,7 @@ class ActivityRiskContract(gl.Contract):
     def get_assessment(self) -> str:
         return self.last_assessment
 
-    @gl.public.write
+    @gl.public.write(payable=True)
     def assess_activity(self, lat: str, lon: str, activity: str, location_name: str, target_date: str, duration_hours: str) -> None:
         CONFIGS = {
             "farming":         {"ideal": (5, 30),  "max_precip": 5,   "max_wind": 30,  "uv": False, "vis": False},
