@@ -108,7 +108,7 @@ function App() {
             onValueChange={(v) => setActiveTab(v as TabId)}
             className="w-full"
           >
-          <TabsList className="w-full max-w-md mx-auto grid grid-cols-4 mb-8 rounded-lg bg-white/90 dark:bg-[rgba(6,20,40,0.9)] backdrop-blur-sm border border-slate-300 dark:border-[rgba(14,165,233,0.28)] p-1 shadow-sm overflow-hidden">
+          <TabsList className="w-full max-w-2xl mx-auto grid grid-cols-4 mb-8 rounded-lg bg-white/90 dark:bg-[rgba(6,20,40,0.9)] backdrop-blur-sm border border-slate-300 dark:border-[rgba(14,165,233,0.28)] p-1.5 shadow-sm overflow-hidden group-data-horizontal/tabs:h-14">
               {(
                 [
                   { id: 'weather', label: 'Weather', icon: CloudSun },
@@ -120,7 +120,7 @@ function App() {
                 <TabsTrigger
                   key={id}
                   value={id}
-                  className="flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-[11px] font-medium data-[state=active]:bg-blue-500 dark:data-[state=active]:bg-[rgba(14,165,233,0.18)] dark:data-[state=active]:shadow-[0_0_14px_rgba(14,165,233,0.25)] data-[state=active]:text-white dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-sm text-slate-500 dark:text-[#3d6880] transition-all sm:gap-1.5 sm:text-xs"
+                  className="flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-0 text-[11px] font-medium data-[state=active]:bg-blue-500 dark:data-[state=active]:bg-[rgba(14,165,233,0.18)] dark:data-[state=active]:shadow-[0_0_14px_rgba(14,165,233,0.25)] data-[state=active]:text-white dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-sm text-slate-500 dark:text-[#3d6880] transition-all sm:gap-1.5 sm:px-3 sm:text-xs"
                 >
                   <Icon size={14} className="shrink-0" />
                   <span className="truncate">{label}</span>

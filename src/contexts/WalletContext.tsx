@@ -12,7 +12,6 @@ type WalletContextValue = WalletState & {
   refreshBalance: () => void
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const WalletContext = createContext<WalletContextValue | null>(null)
 
 export function WalletProvider({ children }: { children: ReactNode }) {
