@@ -3,7 +3,7 @@
  * Chromium — GenLayer Contract Verification
  *
  * Reads a view function from each deployed contract to confirm the contracts
- * are live and responding on testnetBradbury.
+ * are live and responding on studionet.
  *
  * Address resolution order:
  *   1. contracts/.deployed.json  (written by deploy-contracts.mjs)
@@ -142,7 +142,7 @@ async function main() {
   if (addresses.deployedAt) {
     console.log(`Deployed at    : ${addresses.deployedAt}`);
   }
-  console.log(`Network        : testnetBradbury\n`);
+  console.log(`Network        : studionet\n`);
 
   // We only need a read-only client — no private key needed for view calls.
   // Use a dummy account if no private key is configured.
@@ -152,7 +152,7 @@ async function main() {
 
   const account = createAccount(privateKey);
   const client = createClient({
-    chain: chains.testnetBradbury,
+    chain: chains.studionet,
     account,
   });
 

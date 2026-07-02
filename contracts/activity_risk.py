@@ -61,6 +61,11 @@ class ActivityRiskContract(gl.Contract):
         }
 
         def leader_fn():
+            def to_int(value, default=0):
+                if value is None:
+                    return default
+                return int(round(value))
+
             act_key = activity.lower().replace(" ", "_")
             if act_key not in CONFIGS:
                 act_key = "outdoor_sports"
@@ -159,7 +164,7 @@ class ActivityRiskContract(gl.Contract):
                 penalty += 25
                 concerns.append("Snowfall expected")
 
-            risk_score = max(0, min(100, 100 - penalty))
+            risk_score = int(max(0, min(100, round(100 - penalty))))
 
             if risk_score >= 75:
                 risk_level = "LOW"
@@ -210,13 +215,13 @@ class ActivityRiskContract(gl.Contract):
                 "target_date": target_date,
                 "duration_hours": duration_hours,
                 "metrics": {
-                    "temp_c": round(temp, 1),
-                    "precip_mm": round(precip, 1),
-                    "wind_kmh": round(wind, 0),
-                    "gusts_kmh": round(gusts, 0),
-                    "visibility_m": round(vis, 0),
-                    "humidity_pct": round(humidity, 0),
-                    "uv_index": round(uv, 1),
+                    "temp_c": to_int(temp),
+                    "precip_mm": to_int(precip),
+                    "wind_kmh": to_int(wind),
+                    "gusts_kmh": to_int(gusts),
+                    "visibility_m": to_int(vis),
+                    "humidity_pct": to_int(humidity),
+                    "uv_index": to_int(uv),
                 },
             }
 

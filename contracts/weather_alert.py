@@ -55,6 +55,11 @@ class WeatherAlertContract(gl.Contract):
     @gl.public.write.payable
     def check_alerts(self, lat: str, lon: str, location_name: str, lookahead_hours: str) -> None:
         def leader_fn():
+            def to_int(value, default=0):
+                if value is None:
+                    return default
+                return int(round(value))
+
             hours = int(lookahead_hours) if lookahead_hours.isdigit() else 24
             hours = min(max(hours, 6), 72)
             forecast_days = max(1, (hours + 23) // 24)
@@ -98,40 +103,40 @@ class WeatherAlertContract(gl.Contract):
             mp = sm(h_precip)
             if tp > 50 or mp > 15:
                 sev = "EMERGENCY" if (tp > 100 or mp > 30) else "WARNING"
-                raw_alerts.append({"type": "heavy_precipitation", "severity": sev, "affected_hours": iw(h_precip, lambda p: p > 5), "peak_value": round(mp, 1)})
+                raw_alerts.append({"type": "heavy_precipitation", "severity": sev, "affected_hours": iw(h_precip, lambda p: p > 5), "peak_value": to_int(mp)})
 
             mx_t = sm(h_temp)
             if mx_t > 38:
-                raw_alerts.append({"type": "extreme_heat", "severity": "EMERGENCY" if mx_t > 43 else "WARNING", "affected_hours": iw(h_temp, lambda t: t > 38), "peak_value": round(mx_t, 1)})
+                raw_alerts.append({"type": "extreme_heat", "severity": "EMERGENCY" if mx_t > 43 else "WARNING", "affected_hours": iw(h_temp, lambda t: t > 38), "peak_value": to_int(mx_t)})
 
             mn_t = sn(h_temp)
             if mn_t < -15:
-                raw_alerts.append({"type": "extreme_cold", "severity": "EMERGENCY" if mn_t < -25 else "WARNING", "affected_hours": iw(h_temp, lambda t: t < -15), "peak_value": round(mn_t, 1)})
+                raw_alerts.append({"type": "extreme_cold", "severity": "EMERGENCY" if mn_t < -25 else "WARNING", "affected_hours": iw(h_temp, lambda t: t < -15), "peak_value": to_int(mn_t)})
 
             mw = sm(h_wind)
             mg = sm(h_gusts)
             if mw > 80 or mg > 100:
-                raw_alerts.append({"type": "high_wind", "severity": "EMERGENCY" if (mw > 100 or mg > 130) else "WARNING", "affected_hours": iw(h_wind, lambda w: w > 60), "peak_value": round(mg, 1)})
+                raw_alerts.append({"type": "high_wind", "severity": "EMERGENCY" if (mw > 100 or mg > 130) else "WARNING", "affected_hours": iw(h_wind, lambda w: w > 60), "peak_value": to_int(mg)})
 
             mv = sn(h_vis)
             if mv < 500:
-                raw_alerts.append({"type": "dense_fog", "severity": "EMERGENCY" if mv < 100 else "WARNING", "affected_hours": iw(h_vis, lambda v: v < 500), "peak_value": round(mv, 0)})
+                raw_alerts.append({"type": "dense_fog", "severity": "EMERGENCY" if mv < 100 else "WARNING", "affected_hours": iw(h_vis, lambda v: v < 500), "peak_value": to_int(mv)})
 
             ts = ss(h_snow)
             ms = sm(h_snow)
             if ts > 20 or ms > 5:
-                raw_alerts.append({"type": "heavy_snow", "severity": "EMERGENCY" if ts >= 50 else "WARNING", "affected_hours": iw(h_snow, lambda s: s > 2), "peak_value": round(ms, 1)})
+                raw_alerts.append({"type": "heavy_snow", "severity": "EMERGENCY" if ts >= 50 else "WARNING", "affected_hours": iw(h_snow, lambda s: s > 2), "peak_value": to_int(ms)})
 
             mu = sm(h_uv)
             if mu >= 11:
-                raw_alerts.append({"type": "extreme_uv", "severity": "WARNING", "affected_hours": iw(h_uv, lambda u: u >= 8), "peak_value": round(mu, 1)})
+                raw_alerts.append({"type": "extreme_uv", "severity": "WARNING", "affected_hours": iw(h_uv, lambda u: u >= 8), "peak_value": to_int(mu)})
 
             if len(h_pres) >= 6:
                 for i in range(len(h_pres) - 6):
                     p1 = h_pres[i]
                     p2 = h_pres[i + 6]
                     if p1 is not None and p2 is not None and (p1 - p2) > 5:
-                        raw_alerts.append({"type": "rapid_pressure_drop", "severity": "WATCH", "affected_hours": list(range(i, min(i + 12, len(h_pres)))), "peak_value": round(p1 - p2, 1)})
+                        raw_alerts.append({"type": "rapid_pressure_drop", "severity": "WATCH", "affected_hours": list(range(i, min(i + 12, len(h_pres)))), "peak_value": to_int(p1 - p2)})
                         break
 
             if not raw_alerts:

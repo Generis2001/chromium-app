@@ -40,6 +40,11 @@ class TravelComparisonContract(gl.Contract):
         }
 
         def leader_fn():
+            def to_int(value, default=0):
+                if value is None:
+                    return default
+                return int(round(value))
+
             locations = json.loads(locations_json)
             if len(locations) > 5:
                 locations = locations[:5]
@@ -142,25 +147,24 @@ class TravelComparisonContract(gl.Contract):
                     t_min = sl(daily.get("temperature_2m_min"), day_idx) or 10
                     temp_c = (t_max + t_min) / 2
 
-                overall = round(
+                overall = int(round(
                     cs * weights["comfort"] +
                     ps * weights["precipitation"] +
                     ws * weights["wind"] +
-                    vs * weights["visibility"],
-                    1
-                )
+                    vs * weights["visibility"]
+                ))
 
                 city_data.append({
                     "name": loc["name"],
                     "lat": loc["lat"],
                     "lon": loc["lon"],
                     "overall_score": overall,
-                    "comfort_score": cs,
-                    "precipitation_score": ps,
-                    "wind_score": ws,
-                    "visibility_score": vs,
+                    "comfort_score": to_int(cs),
+                    "precipitation_score": to_int(ps),
+                    "wind_score": to_int(ws),
+                    "visibility_score": to_int(vs),
                     "condition": cond,
-                    "temp_current": temp_c,
+                    "temp_current": to_int(temp_c),
                 })
 
             city_data.sort(key=lambda x: (-x["overall_score"], x["name"]))
