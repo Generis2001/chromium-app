@@ -1,7 +1,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """
-WeatherAlertContract — detects extreme weather conditions deterministically.
-No LLM calls — all alert text is generated from weather thresholds.
+WeatherAlertContract — reaches strict validator consensus on Open-Meteo alert
+signals, then uses an LLM to phrase the consensus alert summary.
 """
 from genlayer import *
 import json
@@ -185,20 +185,28 @@ class WeatherAlertContract(gl.Contract):
                 "summary": " ".join(summary_parts),
             }
 
-        def validator_fn(leaders_res) -> bool:
-            if not isinstance(leaders_res, gl.vm.Return):
-                return False
-            try:
-                data = leaders_res.calldata
-                return (
-                    data.get("overall_severity") in ("NONE", "WATCH", "WARNING", "EMERGENCY")
-                    and isinstance(data.get("alert_count"), (int, float))
-                    and isinstance(data.get("alerts"), list)
-                )
-            except Exception:
-                return False
+        result = gl.eq_principle.strict_eq(leader_fn)
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        def ai_fn():
+            prompt = f"""
+            Explain this GenLayer weather-alert result. The alert fields have
+            already been computed from validator-consensus weather data, so do
+            not change the severity or alert count.
+
+            Location: {location_name}
+            Overall severity: {result["overall_severity"]}
+            Alert count: {result["alert_count"]}
+            Alerts: {result["alerts"]}
+
+            Return JSON with exactly these keys:
+            - "overall_severity": repeat the given severity
+            - "alert_count": repeat the given alert count
+            - "summary": one concise user-facing alert summary
+            """
+            return gl.nondet.exec_prompt(prompt, response_format='json')
+
+        ai_result = gl.eq_principle.strict_eq(ai_fn)
+        result["summary"] = ai_result.get("summary", result["summary"])
         self.active_alerts = json.dumps(result)
         self.alert_count = u64(int(self.alert_count) + 1)
         self.last_checked_lat = lat

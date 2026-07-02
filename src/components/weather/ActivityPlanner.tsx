@@ -105,7 +105,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.15 }}
       className={cn(
-        'bg-white rounded-[20px] shadow-[0_8px_32px_rgba(0,0,0,0.08)] border border-slate-100 p-6',
+        'bg-white rounded-lg shadow-[0_8px_32px_rgba(15,23,42,0.08)] border border-slate-300 p-4 sm:p-6',
         className,
       )}
     >
@@ -117,7 +117,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
       </div>
 
       {/* Mode toggle */}
-      <div className="flex rounded-xl bg-slate-100 p-1 mb-4 gap-1">
+      <div className="flex rounded-lg bg-slate-100 p-1 mb-4 gap-1 border border-slate-200">
         {(['assess', 'best-date'] as const).map((m) => (
           <button
             key={m}
@@ -135,7 +135,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
       </div>
 
       {/* Activity grid */}
-      <div className="grid grid-cols-5 gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-2 mb-4 sm:grid-cols-3 lg:grid-cols-5">
         {SUPPORTED_ACTIVITIES.map((act) => (
           <button
             key={act}
@@ -144,7 +144,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
               clearResult()
               clearBestDate()
             }}
-            className={`px-2 py-2 rounded-xl text-xs font-medium transition-colors ${
+            className={`min-h-[40px] px-2 py-2 rounded-lg text-xs font-medium leading-tight transition-colors break-words ${
               activity === act
                 ? 'bg-blue-500 text-white shadow-sm'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -156,7 +156,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
       </div>
 
       {/* Options */}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end">
         {mode === 'assess' && (
           <div className="flex-1">
             <label className="block text-xs font-medium text-slate-500 mb-1">Target Date</label>
@@ -185,7 +185,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
           <button
             onClick={() => void handleAssess()}
             disabled={!location || isLoading || !walletAddress}
-            className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
+            className="h-[42px] justify-center px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shrink-0"
           >
             {isLoading ? (
               <>
@@ -200,7 +200,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
           <button
             onClick={() => void handleFindBestDate()}
             disabled={!location || bestDateLoading}
-            className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
+            className="h-[42px] justify-center px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shrink-0"
           >
             {bestDateLoading ? (
               <>
@@ -265,15 +265,15 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
             </div>
 
             {/* Recommendation */}
-            <div className="bg-blue-50 rounded-xl px-4 py-3">
+            <div className="bg-blue-50 rounded-lg border border-blue-100 px-4 py-3">
               <p className="text-xs font-semibold text-blue-700 mb-1">Recommendation</p>
-              <p className="text-sm text-blue-800">{result.recommendation}</p>
+              <p className="text-sm text-blue-800 break-words">{result.recommendation}</p>
             </div>
 
             {/* Best time window */}
-            <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3">
-              <Clock size={16} className="text-slate-400" />
-              <span className="text-sm text-slate-600">
+            <div className="flex items-start gap-2 bg-slate-50 rounded-lg border border-slate-200 px-4 py-3">
+              <Clock size={16} className="mt-0.5 shrink-0 text-slate-400" />
+              <span className="min-w-0 text-sm text-slate-600 break-words">
                 Best time: <strong>{result.best_time_window}</strong>
               </span>
             </div>
@@ -286,7 +286,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
                   {result.key_concerns.map((c, i) => (
                     <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
                       <span className="text-red-400 mt-0.5">•</span>
-                      <span>{c}</span>
+                      <span className="min-w-0 break-words">{c}</span>
                     </li>
                   ))}
                 </ul>
@@ -294,7 +294,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
             )}
 
             {/* Safety tips + Gear suggestions */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {result.safety_tips.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
@@ -304,7 +304,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
                     {result.safety_tips.map((t, i) => (
                       <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
                         <span className="text-amber-400 mt-0.5">•</span>
-                        <span>{t}</span>
+                        <span className="min-w-0 break-words">{t}</span>
                       </li>
                     ))}
                   </ul>
@@ -319,7 +319,7 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
                     {result.gear_suggestions.map((g, i) => (
                       <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
                         <span className="text-blue-400 mt-0.5">•</span>
-                        <span>{g}</span>
+                        <span className="min-w-0 break-words">{g}</span>
                       </li>
                     ))}
                   </ul>
@@ -350,12 +350,12 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
             className="space-y-4"
           >
             {/* Best date banner */}
-            <div className="bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-100">
+            <div className="bg-emerald-50 rounded-lg px-4 py-3 border border-emerald-200">
               <p className="text-xs font-semibold text-emerald-700 mb-1">Best Day</p>
               <p className="text-sm text-emerald-800 font-medium">
                 {bestDateResult.best_day_name}: {bestDateResult.best_date}
               </p>
-              <p className="text-xs text-emerald-600 mt-1">{bestDateResult.reasoning}</p>
+              <p className="text-xs text-emerald-600 mt-1 break-words">{bestDateResult.reasoning}</p>
             </div>
 
             {/* 7-day ranking */}
@@ -364,21 +364,21 @@ export function ActivityPlanner({ location, walletAddress, className }: Activity
               {bestDateResult.ranked_dates.map((d: DateRanking) => (
                 <div
                   key={d.date}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${
+                  className={`flex flex-col gap-3 rounded-lg px-4 py-3 border sm:flex-row sm:items-center ${
                     d.rank === 1
                       ? 'bg-emerald-50 border-emerald-200'
                       : 'bg-slate-50 border-slate-100'
                   }`}
                 >
-                  <span className={`text-base font-bold w-6 ${d.rank === 1 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  <span className={`text-base font-bold sm:w-6 ${d.rank === 1 ? 'text-emerald-400' : 'text-slate-300'}`}>
                     #{d.rank}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <p className="text-sm font-medium text-slate-700">{d.day_name}</p>
                       <span className="text-xs text-slate-400">{d.date}</span>
                     </div>
-                    <p className="text-xs text-slate-400 truncate">{d.condition_summary.slice(0, 60)}</p>
+                    <p className="text-xs text-slate-400 break-words">{d.condition_summary.slice(0, 90)}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <RiskBadge risk={d.risk_level} size="sm" />

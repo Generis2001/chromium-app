@@ -1,7 +1,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """
 ActivityRiskContract — evaluates weather suitability for specific activities
-using deterministic scoring only (no LLM calls).
+with strict validator consensus on weather data and LLM-generated guidance.
 """
 from genlayer import *
 import json
@@ -220,19 +220,32 @@ class ActivityRiskContract(gl.Contract):
                 },
             }
 
-        def validator_fn(leaders_res) -> bool:
-            if not isinstance(leaders_res, gl.vm.Return):
-                return False
-            try:
-                data = leaders_res.calldata
-                return (
-                    data.get("risk_level") in ("LOW", "MEDIUM", "HIGH")
-                    and data.get("suitability") in ("SUITABLE", "MARGINAL", "UNSUITABLE")
-                    and isinstance(data.get("risk_score"), (int, float))
-                )
-            except Exception:
-                return False
+        result = gl.eq_principle.strict_eq(leader_fn)
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        def ai_fn():
+            prompt = f"""
+            Explain this GenLayer activity-risk assessment. The suitability,
+            risk level, and score have already been computed from
+            validator-consensus weather data. Do not change them.
+
+            Activity: {activity}
+            Location: {location_name}
+            Suitability: {result["suitability"]}
+            Risk level: {result["risk_level"]}
+            Risk score: {result["risk_score"]}
+            Concerns: {result["key_concerns"]}
+            Metrics: {result["metrics"]}
+
+            Return JSON with exactly these keys:
+            - "suitability": repeat the given suitability
+            - "risk_level": repeat the given risk level
+            - "recommendation": one practical sentence for the activity
+            - "best_time_window": concise suggested timing
+            """
+            return gl.nondet.exec_prompt(prompt, response_format='json')
+
+        ai_result = gl.eq_principle.strict_eq(ai_fn)
+        result["recommendation"] = ai_result.get("recommendation", result["recommendation"])
+        result["best_time_window"] = ai_result.get("best_time_window", result["best_time_window"])
         self.last_assessment = json.dumps(result)
         self.assessment_count = u64(int(self.assessment_count) + 1)

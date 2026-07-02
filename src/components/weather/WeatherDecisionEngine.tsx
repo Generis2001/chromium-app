@@ -79,7 +79,7 @@ export function WeatherDecisionEngine({ location, walletAddress, className }: We
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
       className={cn(
-        'bg-white rounded-[20px] shadow-[0_8px_32px_rgba(0,0,0,0.08)] border border-slate-100 p-6',
+        'bg-white rounded-lg shadow-[0_8px_32px_rgba(15,23,42,0.08)] border border-slate-300 p-4 sm:p-6',
         className
       )}
     >
@@ -90,8 +90,8 @@ export function WeatherDecisionEngine({ location, walletAddress, className }: We
       </div>
 
       {/* Input row */}
-      <div className="flex gap-2 mb-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-2 mb-3 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
           <Search
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
@@ -110,7 +110,7 @@ export function WeatherDecisionEngine({ location, walletAddress, className }: We
         <button
           onClick={() => void handleAnalyze()}
           disabled={!location || !query.trim() || isAnalyzing || !walletAddress}
-          className="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0"
+          className="min-h-[42px] justify-center px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shrink-0"
         >
           {isAnalyzing ? (
             <>
@@ -194,25 +194,25 @@ export function WeatherDecisionEngine({ location, walletAddress, className }: We
               <span className="text-sm text-slate-500">
                 {result.confidence}% confident
               </span>
-              <div className="ml-auto">
+              <div className="sm:ml-auto">
                 <ContractBadge contract="WeatherAnalysis" />
               </div>
             </div>
 
             {/* Reasoning */}
-            <p className="text-slate-600 text-sm leading-relaxed">
+            <p className="text-slate-600 text-sm leading-relaxed break-words">
               {result.reasoning}
             </p>
 
             {/* Recommendation */}
-            <div className="bg-blue-50 rounded-xl px-4 py-3">
+            <div className="bg-blue-50 rounded-lg border border-blue-100 px-4 py-3">
               <p className="text-xs font-semibold text-blue-700 mb-1">Recommendation</p>
-              <p className="text-sm text-blue-800">{result.recommendation}</p>
+              <p className="text-sm text-blue-800 break-words">{result.recommendation}</p>
             </div>
 
             {/* Key factors + alternative days */}
             {(result.key_factors.length > 0 || result.alternative_days.length > 0) && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {result.key_factors.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-slate-500 mb-2">Risk Factors</p>
@@ -220,7 +220,7 @@ export function WeatherDecisionEngine({ location, walletAddress, className }: We
                       {result.key_factors.slice(0, 3).map((f, i) => (
                         <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
                           <span className="text-blue-400 mt-0.5">•</span>
-                          <span>{f}</span>
+                          <span className="min-w-0 break-words">{f}</span>
                         </li>
                       ))}
                     </ul>

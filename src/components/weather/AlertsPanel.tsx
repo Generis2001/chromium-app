@@ -76,7 +76,7 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.25 }}
       className={cn(
-        'bg-white rounded-[20px] shadow-[0_8px_32px_rgba(0,0,0,0.08)] border border-slate-100 p-6',
+        'bg-white rounded-lg shadow-[0_8px_32px_rgba(15,23,42,0.08)] border border-slate-300 p-4 sm:p-6',
         className,
       )}
     >
@@ -88,7 +88,7 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
       </div>
 
       {/* Controls */}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end">
         <div className="flex-1">
           <label className="block text-xs font-medium text-slate-500 mb-1">
             Lookahead Period
@@ -111,7 +111,7 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
         <button
           onClick={() => void handleCheck()}
           disabled={!location || isLoading || !walletAddress}
-          className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
+          className="h-[42px] justify-center px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shrink-0"
         >
           {isLoading ? (
             <>
@@ -150,8 +150,8 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
             className="space-y-4"
           >
             {/* Summary row */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className={`text-lg font-bold ${overallColor}`}>
                   {result.overall_severity === 'NONE'
                     ? 'All Clear'
@@ -167,7 +167,7 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
             </div>
 
             {/* Summary text */}
-            <p className="text-sm text-slate-600">{result.summary}</p>
+            <p className="text-sm text-slate-600 break-words">{result.summary}</p>
 
             {/* Alert cards */}
             {result.alerts.length > 0 && (
@@ -178,17 +178,17 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
                   return (
                     <div
                       key={alert.id}
-                      className={`rounded-xl ${colors.bg} border ${colors.border} p-4 space-y-2`}
+                      className={`rounded-lg ${colors.bg} border ${colors.border} p-4 space-y-2`}
                     >
                       {/* Alert header */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-2">
                           <span className={`size-2 rounded-full ${colors.dot} shrink-0`} />
-                          <div>
-                            <p className={`text-sm font-semibold ${colors.text}`}>
+                          <div className="min-w-0">
+                            <p className={`text-sm font-semibold break-words ${colors.text}`}>
                               {alert.title}
                             </p>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-slate-500 break-words">
                               {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
                             </p>
                           </div>
@@ -201,12 +201,12 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
                       </div>
 
                       {/* Description */}
-                      <p className="text-xs text-slate-600 leading-relaxed">
+                      <p className="text-xs text-slate-600 leading-relaxed break-words">
                         {alert.description}
                       </p>
 
                       {/* Details row */}
-                      <div className="flex items-center gap-4 text-xs text-slate-500 pt-1">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 pt-1">
                         {alert.peak_value > 0 && (
                           <span className="flex items-center gap-1">
                             <AlertTriangle size={12} />
@@ -240,7 +240,7 @@ export function AlertsPanel({ location, walletAddress, className }: AlertsPanelP
                                 className="text-xs text-slate-600 flex items-start gap-1.5"
                               >
                                 <span className="text-blue-400 mt-0.5">•</span>
-                                <span>{action}</span>
+                                <span className="min-w-0 break-words">{action}</span>
                               </li>
                             ))}
                           </ul>

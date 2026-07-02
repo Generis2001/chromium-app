@@ -151,7 +151,7 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.2 }}
       className={cn(
-        'bg-white rounded-[20px] shadow-[0_8px_32px_rgba(0,0,0,0.08)] border border-slate-100 p-6',
+        'bg-white rounded-lg shadow-[0_8px_32px_rgba(15,23,42,0.08)] border border-slate-300 p-4 sm:p-6',
         className,
       )}
     >
@@ -161,7 +161,7 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
       </div>
 
       {/* Mode toggle */}
-      <div className="flex rounded-xl bg-slate-100 p-1 mb-4 gap-1">
+      <div className="flex rounded-lg bg-slate-100 p-1 mb-4 gap-1 border border-slate-200">
         {(['travel', 'activity'] as const).map((m) => (
           <button
             key={m}
@@ -182,7 +182,7 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
         {locations.map((loc) => (
           <div
             key={loc.id}
-            className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5"
+            className="flex items-center gap-2 bg-slate-50 rounded-lg border border-slate-200 px-3 py-2.5"
           >
             <GripVertical size={14} className="text-slate-300 shrink-0" />
             <span className="text-sm text-slate-700 flex-1 truncate">{loc.name}</span>
@@ -250,7 +250,7 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
       </div>
 
       {/* Options row */}
-      <div className="flex items-end gap-3 mb-4">
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end">
         {mode === 'travel' ? (
           <div className="flex-1">
             <label className="block text-xs font-medium text-slate-500 mb-1">Purpose</label>
@@ -296,7 +296,7 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
         <button
           onClick={() => void handleCompare()}
           disabled={locations.length < 2 || isLoading || (mode === 'travel' && !walletAddress)}
-          className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 shrink-0 h-[42px]"
+          className="h-[42px] justify-center px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shrink-0"
         >
           {isLoading ? (
             <>
@@ -335,10 +335,10 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
             className="space-y-4"
           >
             {/* Best location banner */}
-            <div className="bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-100">
+            <div className="bg-emerald-50 rounded-lg px-4 py-3 border border-emerald-200">
               <p className="text-xs font-semibold text-emerald-700 mb-1">Best Choice</p>
-              <p className="text-sm text-emerald-800 font-medium">{currentResult.best_location}</p>
-              <p className="text-xs text-emerald-600 mt-1">{currentResult.reasoning}</p>
+              <p className="text-sm text-emerald-800 font-medium break-words">{currentResult.best_location}</p>
+              <p className="text-xs text-emerald-600 mt-1 break-words">{currentResult.reasoning}</p>
             </div>
 
             {/* Partial failures notice */}
@@ -355,18 +355,18 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
                 {(currentResult.ranked_locations as RankedLocation[]).map((loc) => (
                   <div
                     key={loc.name}
-                    className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"
+                    className="flex items-start justify-between gap-3 bg-slate-50 rounded-lg border border-slate-200 px-4 py-3"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
                       <span className="text-lg font-bold text-slate-300 w-6">
                         #{loc.rank}
                       </span>
-                      <div>
-                        <p className="text-sm font-medium text-slate-700">{loc.name}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700 break-words">{loc.name}</p>
                         <p className="text-xs text-slate-400">{loc.condition}</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold text-blue-500">
+                    <span className="shrink-0 text-lg font-bold text-blue-500">
                       {loc.overall_score}
                     </span>
                   </div>
@@ -383,16 +383,16 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
                   return (
                     <div
                       key={loc.name}
-                      className={`rounded-xl ${colors.bg} border ${colors.border} px-4 py-3 space-y-1`}
+                      className={`rounded-lg ${colors.bg} border ${colors.border} px-4 py-3 space-y-1`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-2">
                           <span className="text-lg font-bold text-slate-300 w-6">
                             #{loc.rank}
                           </span>
-                          <p className="text-sm font-medium text-slate-700">{loc.name}</p>
+                          <p className="min-w-0 text-sm font-medium text-slate-700 break-words">{loc.name}</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                           <span className={`text-[10px] font-bold uppercase ${colors.text}`}>
                             {loc.suitability}
                           </span>
@@ -400,7 +400,7 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
                         </div>
                       </div>
                       {loc.key_concerns.length > 0 && (
-                        <p className="text-xs text-slate-500 pl-8">
+                        <p className="text-xs text-slate-500 break-words sm:pl-8">
                           {loc.key_concerns[0]}
                         </p>
                       )}
@@ -411,8 +411,8 @@ export function MultiLocationComparison({ walletAddress, className }: { walletAd
             )}
 
             {/* Purpose note + contract badge */}
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-xs text-slate-400 italic">
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-400 italic break-words">
                 {'purpose_note' in currentResult ? currentResult.purpose_note : ''}
               </p>
               <ContractBadge contract={mode === 'travel' ? 'TravelComparison' : 'ActivityRisk'} />

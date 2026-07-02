@@ -1,7 +1,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """
 TravelComparisonContract — compares multiple cities for a specific travel purpose
-using deterministic scoring only (no LLM calls).
+with strict validator consensus on weather data and LLM-generated explanation.
 """
 from genlayer import *
 import json
@@ -211,20 +211,28 @@ class TravelComparisonContract(gl.Contract):
                 "partial_failures": [],
             }
 
-        def validator_fn(leaders_res) -> bool:
-            if not isinstance(leaders_res, gl.vm.Return):
-                return False
-            try:
-                data = leaders_res.calldata
-                return (
-                    isinstance(data.get("best_location"), str)
-                    and len(data.get("best_location", "")) > 0
-                    and isinstance(data.get("ranked_locations"), list)
-                    and isinstance(data.get("scores"), list)
-                )
-            except Exception:
-                return False
+        result = gl.eq_principle.strict_eq(leader_fn)
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        def ai_fn():
+            prompt = f"""
+            Explain this GenLayer travel comparison. The best location and
+            rankings have already been computed from validator-consensus weather
+            data. Do not change the winner.
+
+            Purpose: {purpose}
+            Travel date: {travel_date}
+            Best location: {result["best_location"]}
+            Ranked locations: {result["ranked_locations"]}
+
+            Return JSON with exactly these keys:
+            - "best_location": repeat the given best location
+            - "reasoning": one concise explanation grounded in the rankings
+            - "purpose_note": one sentence about the purpose-specific criteria
+            """
+            return gl.nondet.exec_prompt(prompt, response_format='json')
+
+        ai_result = gl.eq_principle.strict_eq(ai_fn)
+        result["reasoning"] = ai_result.get("reasoning", result["reasoning"])
+        result["purpose_note"] = ai_result.get("purpose_note", result["purpose_note"])
         self.last_comparison = json.dumps(result)
         self.comparison_count = u64(int(self.comparison_count) + 1)

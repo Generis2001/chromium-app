@@ -1,7 +1,7 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """
-WeatherAnalysisContract — fetches live Open-Meteo data, computes deterministic
-scores, and produces a structured weather decision without any LLM calls.
+WeatherAnalysisContract — reaches strict validator consensus on Open-Meteo data,
+then uses an LLM to explain the consensus weather decision.
 """
 from genlayer import *
 import json
@@ -167,20 +167,32 @@ class WeatherAnalysisContract(gl.Contract):
                 "query": query,
             }
 
-        def validator_fn(leaders_res) -> bool:
-            if not isinstance(leaders_res, gl.vm.Return):
-                return False
-            try:
-                data = leaders_res.calldata
-                return (
-                    data.get("decision") in ("GO", "CAUTION", "AVOID")
-                    and data.get("risk_level") in ("LOW", "MEDIUM", "HIGH")
-                    and isinstance(data.get("comfort_score"), (int, float))
-                )
-            except Exception:
-                return False
+        result = gl.eq_principle.strict_eq(leader_fn)
 
-        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        def ai_fn():
+            prompt = f"""
+            You are explaining a GenLayer weather decision that has already been
+            computed from validator-consensus weather data. Do not change the
+            decision fields.
+
+            Location: {location_name}
+            User query: {query}
+            Decision: {result["decision"]}
+            Risk level: {result["risk_level"]}
+            Comfort score: {result["comfort_score"]}
+            Key factors: {result["key_factors"]}
+
+            Return JSON with exactly these keys:
+            - "decision": repeat the given decision
+            - "risk_level": repeat the given risk level
+            - "reasoning": one concise sentence grounded in the key factors
+            - "recommendation": one practical sentence for the user
+            """
+            return gl.nondet.exec_prompt(prompt, response_format='json')
+
+        ai_result = gl.eq_principle.strict_eq(ai_fn)
+        result["reasoning"] = ai_result.get("reasoning", result["reasoning"])
+        result["recommendation"] = ai_result.get("recommendation", result["recommendation"])
         self.last_result = json.dumps(result)
         self.analysis_count = u64(int(self.analysis_count) + 1)
         self.cache_lat = lat

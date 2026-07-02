@@ -108,7 +108,7 @@ function App() {
             onValueChange={(v) => setActiveTab(v as TabId)}
             className="w-full"
           >
-            <TabsList className="w-full max-w-md mx-auto grid grid-cols-4 mb-8 rounded-2xl bg-white/70 dark:bg-[rgba(6,20,40,0.82)] backdrop-blur-sm border border-slate-200/60 dark:border-[rgba(14,165,233,0.2)] p-1">
+          <TabsList className="w-full max-w-md mx-auto grid grid-cols-4 mb-8 rounded-lg bg-white/90 dark:bg-[rgba(6,20,40,0.9)] backdrop-blur-sm border border-slate-300 dark:border-[rgba(14,165,233,0.28)] p-1 shadow-sm overflow-hidden">
               {(
                 [
                   { id: 'weather', label: 'Weather', icon: CloudSun },
@@ -120,10 +120,10 @@ function App() {
                 <TabsTrigger
                   key={id}
                   value={id}
-                  className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium data-[state=active]:bg-blue-500 dark:data-[state=active]:bg-[rgba(14,165,233,0.18)] dark:data-[state=active]:shadow-[0_0_14px_rgba(14,165,233,0.25)] data-[state=active]:text-white dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-sm text-slate-500 dark:text-[#3d6880] transition-all"
+                  className="flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-[11px] font-medium data-[state=active]:bg-blue-500 dark:data-[state=active]:bg-[rgba(14,165,233,0.18)] dark:data-[state=active]:shadow-[0_0_14px_rgba(14,165,233,0.25)] data-[state=active]:text-white dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-sm text-slate-500 dark:text-[#3d6880] transition-all sm:gap-1.5 sm:text-xs"
                 >
-                  <Icon size={14} />
-                  {label}
+                  <Icon size={14} className="shrink-0" />
+                  <span className="truncate">{label}</span>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -142,7 +142,7 @@ function App() {
                       locationName={location.display_name}
                     />
                   ) : (
-                    <div className="bg-white dark:bg-[rgba(6,20,40,0.97)] rounded-[20px] border border-slate-100 dark:border-[rgba(14,165,233,0.14)] p-6 flex flex-col items-center justify-center h-40 text-slate-400 dark:text-[#3d6880]">
+                    <div className="bg-white dark:bg-[rgba(6,20,40,0.97)] rounded-lg border border-slate-300 dark:border-[rgba(14,165,233,0.22)] p-6 flex flex-col items-center justify-center min-h-40 text-center text-slate-400 dark:text-[#3d6880] shadow-sm">
                       <p className="text-sm">Select a location to see current conditions</p>
                     </div>
                   )}
