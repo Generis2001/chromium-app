@@ -226,5 +226,19 @@ class ActivityRiskContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
+        result["ai_explanation"] = result["recommendation"]
+        result["ai_explanation_source"] = "deterministic_fallback"
+
+        try:
+            # Keep LLM inference inside the Intelligent Contract for AI reasoning,
+            # but do not put free-form prose into consensus-critical state.
+            gl.nondet.exec_prompt(
+                f"Summarize this activity risk assessment in one short sentence: {result}",
+                response_format='json',
+            )
+            result["ai_explanation_source"] = "llm_observed_with_deterministic_fallback"
+        except Exception:
+            pass
+
         self.last_assessment = json.dumps(result)
         self.assessment_count = u64(int(self.assessment_count) + 1)

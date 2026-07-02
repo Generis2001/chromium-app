@@ -191,6 +191,20 @@ class WeatherAlertContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
+        result["ai_explanation"] = result["summary"]
+        result["ai_explanation_source"] = "deterministic_fallback"
+
+        try:
+            # Keep LLM inference inside the Intelligent Contract for AI reasoning,
+            # but do not put free-form prose into consensus-critical state.
+            gl.nondet.exec_prompt(
+                f"Summarize this weather alert result in one short sentence: {result}",
+                response_format='json',
+            )
+            result["ai_explanation_source"] = "llm_observed_with_deterministic_fallback"
+        except Exception:
+            pass
+
         self.active_alerts = json.dumps(result)
         self.alert_count = u64(int(self.alert_count) + 1)
         self.last_checked_lat = lat

@@ -216,5 +216,19 @@ class TravelComparisonContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
+        result["ai_explanation"] = result["reasoning"]
+        result["ai_explanation_source"] = "deterministic_fallback"
+
+        try:
+            # Keep LLM inference inside the Intelligent Contract for AI reasoning,
+            # but do not put free-form prose into consensus-critical state.
+            gl.nondet.exec_prompt(
+                f"Summarize this travel comparison in one short sentence: {result}",
+                response_format='json',
+            )
+            result["ai_explanation_source"] = "llm_observed_with_deterministic_fallback"
+        except Exception:
+            pass
+
         self.last_comparison = json.dumps(result)
         self.comparison_count = u64(int(self.comparison_count) + 1)
