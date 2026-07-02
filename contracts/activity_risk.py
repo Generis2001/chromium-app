@@ -226,31 +226,5 @@ class ActivityRiskContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
-
-        def ai_fn():
-            prompt = f"""
-            Explain this GenLayer activity-risk assessment. The suitability,
-            risk level, and score have already been computed from
-            validator-consensus weather data. Do not change them.
-
-            Activity: {activity}
-            Location: {location_name}
-            Suitability: {result["suitability"]}
-            Risk level: {result["risk_level"]}
-            Risk score: {result["risk_score"]}
-            Concerns: {result["key_concerns"]}
-            Metrics: {result["metrics"]}
-
-            Return JSON with exactly these keys:
-            - "suitability": repeat the given suitability
-            - "risk_level": repeat the given risk level
-            - "recommendation": one practical sentence for the activity
-            - "best_time_window": concise suggested timing
-            """
-            return gl.nondet.exec_prompt(prompt, response_format='json')
-
-        ai_result = gl.eq_principle.strict_eq(ai_fn)
-        result["recommendation"] = ai_result.get("recommendation", result["recommendation"])
-        result["best_time_window"] = ai_result.get("best_time_window", result["best_time_window"])
         self.last_assessment = json.dumps(result)
         self.assessment_count = u64(int(self.assessment_count) + 1)

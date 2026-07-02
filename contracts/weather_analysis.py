@@ -168,31 +168,6 @@ class WeatherAnalysisContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
-
-        def ai_fn():
-            prompt = f"""
-            You are explaining a GenLayer weather decision that has already been
-            computed from validator-consensus weather data. Do not change the
-            decision fields.
-
-            Location: {location_name}
-            User query: {query}
-            Decision: {result["decision"]}
-            Risk level: {result["risk_level"]}
-            Comfort score: {result["comfort_score"]}
-            Key factors: {result["key_factors"]}
-
-            Return JSON with exactly these keys:
-            - "decision": repeat the given decision
-            - "risk_level": repeat the given risk level
-            - "reasoning": one concise sentence grounded in the key factors
-            - "recommendation": one practical sentence for the user
-            """
-            return gl.nondet.exec_prompt(prompt, response_format='json')
-
-        ai_result = gl.eq_principle.strict_eq(ai_fn)
-        result["reasoning"] = ai_result.get("reasoning", result["reasoning"])
-        result["recommendation"] = ai_result.get("recommendation", result["recommendation"])
         self.last_result = json.dumps(result)
         self.analysis_count = u64(int(self.analysis_count) + 1)
         self.cache_lat = lat

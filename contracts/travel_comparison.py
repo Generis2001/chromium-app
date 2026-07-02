@@ -216,27 +216,5 @@ class TravelComparisonContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
-
-        def ai_fn():
-            prompt = f"""
-            Explain this GenLayer travel comparison. The best location and
-            rankings have already been computed from validator-consensus weather
-            data. Do not change the winner.
-
-            Purpose: {purpose}
-            Travel date: {travel_date}
-            Best location: {result["best_location"]}
-            Ranked locations: {result["ranked_locations"]}
-
-            Return JSON with exactly these keys:
-            - "best_location": repeat the given best location
-            - "reasoning": one concise explanation grounded in the rankings
-            - "purpose_note": one sentence about the purpose-specific criteria
-            """
-            return gl.nondet.exec_prompt(prompt, response_format='json')
-
-        ai_result = gl.eq_principle.strict_eq(ai_fn)
-        result["reasoning"] = ai_result.get("reasoning", result["reasoning"])
-        result["purpose_note"] = ai_result.get("purpose_note", result["purpose_note"])
         self.last_comparison = json.dumps(result)
         self.comparison_count = u64(int(self.comparison_count) + 1)

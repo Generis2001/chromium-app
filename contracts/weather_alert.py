@@ -191,27 +191,6 @@ class WeatherAlertContract(gl.Contract):
             }
 
         result = gl.eq_principle.strict_eq(leader_fn)
-
-        def ai_fn():
-            prompt = f"""
-            Explain this GenLayer weather-alert result. The alert fields have
-            already been computed from validator-consensus weather data, so do
-            not change the severity or alert count.
-
-            Location: {location_name}
-            Overall severity: {result["overall_severity"]}
-            Alert count: {result["alert_count"]}
-            Alerts: {result["alerts"]}
-
-            Return JSON with exactly these keys:
-            - "overall_severity": repeat the given severity
-            - "alert_count": repeat the given alert count
-            - "summary": one concise user-facing alert summary
-            """
-            return gl.nondet.exec_prompt(prompt, response_format='json')
-
-        ai_result = gl.eq_principle.strict_eq(ai_fn)
-        result["summary"] = ai_result.get("summary", result["summary"])
         self.active_alerts = json.dumps(result)
         self.alert_count = u64(int(self.alert_count) + 1)
         self.last_checked_lat = lat
