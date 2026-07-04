@@ -67,18 +67,19 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
         if (currentJson.ok) {
           setCurrent(currentJson.data)
         } else {
+          setCurrent(null)
           setError(currentJson.error)
         }
 
         if (forecastJson.ok) {
           setForecast(forecastJson.data)
         } else {
-          // Only overwrite error if we don't already have one
-          setError(prev => prev ?? forecastJson.error)
+          setForecast(null)
         }
 
         setLastUpdated(new Date())
       } catch (err) {
+        setCurrent(null)
         setError(err instanceof Error ? err.message : 'Failed to fetch weather')
       } finally {
         setIsLoading(false)
