@@ -44,8 +44,11 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
   // Keep a ref to the latest lat/lon so the interval callback is always fresh
   const latRef = useRef(lat)
   const lonRef = useRef(lon)
-  latRef.current = lat
-  lonRef.current = lon
+
+  useEffect(() => {
+    latRef.current = lat
+    lonRef.current = lon
+  }, [lat, lon])
 
   const fetchWeather = useCallback(
     async (fetchLat: string, fetchLon: string): Promise<void> => {
@@ -98,7 +101,8 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
   // Fetch on lat/lon change
   useEffect(() => {
     if (!lat || !lon) return
-    void fetchWeather(lat, lon)
+    const id = setTimeout(() => void fetchWeather(lat, lon), 0)
+    return () => clearTimeout(id)
   }, [lat, lon, fetchWeather])
 
   // Auto-refetch every 10 minutes
