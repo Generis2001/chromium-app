@@ -80,7 +80,7 @@ export function LocationSearch({
           )
           const json = (await res.json()) as { ok: boolean; data?: GeocodingResult; error?: string }
           if (json.ok && json.data) {
-            onSelect(json.data)
+            handleSelect(json.data)
           } else {
             setGeoError(json.error ?? 'Could not identify your location.')
           }
@@ -102,7 +102,7 @@ export function LocationSearch({
       },
       { timeout: 10000, maximumAge: 60000 }
     )
-  }, [onSelect])
+  }, [handleSelect])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
