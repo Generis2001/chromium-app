@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useId } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, MapPin, LocateFixed, Loader2 } from 'lucide-react'
 import { useGeocoding } from '@/hooks/useGeocoding'
@@ -34,19 +34,10 @@ export function LocationSearch({
   const [activeIndex, setActiveIndex] = useState(-1)
   const [isLocating, setIsLocating] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const listboxId = useId()
 
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  // Open dropdown when there are results, a query is in progress, or we have an error
-  useEffect(() => {
-    if (query.length >= 2) {
-      setIsOpen(true)
-      setActiveIndex(-1)
-    } else {
-      setIsOpen(false)
-    }
-  }, [query, results])
 
   // Close on outside click
   useEffect(() => {
@@ -163,7 +154,10 @@ export function LocationSearch({
           type="text"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value)
+            const nextQuery = e.target.value
+            setQuery(nextQuery)
+            setIsOpen(nextQuery.length >= 2)
+            setActiveIndex(-1)
             if (geoError) setGeoError(null)
           }}
           onKeyDown={handleKeyDown}
@@ -175,6 +169,7 @@ export function LocationSearch({
           className="w-full rounded-2xl bg-white dark:bg-[rgba(4,13,28,0.92)] border border-slate-200 dark:border-[rgba(14,165,233,0.18)] px-4 py-3 pl-10 pr-11 text-sm text-slate-900 dark:text-[#dff0ff] placeholder:text-slate-400 dark:placeholder:text-[#3d6880] focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:focus:ring-[rgba(14,165,233,0.2)] focus:border-blue-400 dark:focus:border-[rgba(14,165,233,0.4)]"
           aria-label="Search for a location"
           aria-autocomplete="list"
+          aria-controls={listboxId}
           aria-expanded={showDropdown || showEmpty}
           role="combobox"
         />
@@ -210,6 +205,7 @@ export function LocationSearch({
             transition={{ duration: 0.15 }}
             className="absolute top-full mt-2 left-0 right-0 rounded-2xl glass dark:bg-[rgba(6,20,40,0.96)] border border-white/60 dark:border-[rgba(14,165,233,0.15)] shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.7)] overflow-hidden z-50"
             role="listbox"
+            id={listboxId}
           >
             {/* Loading skeletons */}
             {isSearching && (

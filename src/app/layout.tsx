@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
-      <body className="font-sans antialiased text-slate-900 min-h-screen">
+    <html lang="en" className={`${inter.variable} dark h-full`}>
+      <body className="font-sans antialiased text-slate-900 dark:text-slate-100 min-h-screen">
         {/* Watermark */}
         <div
           aria-hidden="true"

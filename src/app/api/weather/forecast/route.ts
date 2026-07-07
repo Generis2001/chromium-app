@@ -10,6 +10,7 @@ export async function GET(
   const { searchParams } = req.nextUrl;
   const lat = searchParams.get("lat")?.trim();
   const lon = searchParams.get("lon")?.trim();
+  const refresh = searchParams.get("refresh");
   const daysParam = searchParams.get("days")?.trim() ?? "7";
   const hoursParam = searchParams.get("hours")?.trim() ?? "24";
 
@@ -76,7 +77,10 @@ export async function GET(
     `&wind_speed_unit=kmh&temperature_unit=celsius&precipitation_unit=mm&timezone=auto`;
 
   try {
-    const res = await fetch(url, { next: { revalidate: 600 } });
+    const res = await fetch(
+      url,
+      refresh ? { cache: "no-store" } : { next: { revalidate: 600 } },
+    );
 
     if (!res.ok) {
       return NextResponse.json(

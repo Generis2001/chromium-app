@@ -30,7 +30,7 @@ export function CurrentConditionsCard({
   locationName,
   className,
 }: CurrentConditionsCardProps) {
-  const { current, isLoading, error, lastUpdated, refresh } = useWeather(lat, lon)
+  const { current, isLoading, isRefreshing, error, lastUpdated, refresh } = useWeather(lat, lon)
 
   const shortName = locationName.split(',')[0]
 
@@ -60,16 +60,6 @@ export function CurrentConditionsCard({
             ))}
           </div>
         </div>
-      ) : error ? (
-        <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-          <p className="text-sm">Failed to load weather</p>
-          <button
-            onClick={() => void refresh()}
-            className="mt-2 text-xs text-blue-500 hover:underline flex items-center gap-1"
-          >
-            <RefreshCw size={12} /> Retry
-          </button>
-        </div>
       ) : current ? (
         <div className="space-y-4">
           {/* Location + refresh */}
@@ -79,10 +69,11 @@ export function CurrentConditionsCard({
             </h2>
             <button
               onClick={() => void refresh()}
-              className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
-              title="Refresh"
+              disabled={isRefreshing}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isRefreshing ? 'Refreshing' : 'Refresh'}
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : undefined} />
             </button>
           </div>
 
@@ -152,12 +143,29 @@ export function CurrentConditionsCard({
             ))}
           </div>
 
+          {error && (
+            <p className="text-[11px] text-amber-600">
+              Refresh failed. Showing the last successful weather update.
+            </p>
+          )}
+
           {/* Last updated */}
           {lastUpdated && (
             <p className="text-right text-[11px] text-slate-400">
               Updated {timeAgo(lastUpdated)}
             </p>
           )}
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+          <p className="text-sm">Failed to load weather</p>
+          <button
+            onClick={() => void refresh()}
+            disabled={isRefreshing}
+            className="mt-2 text-xs text-blue-500 hover:underline flex items-center gap-1"
+          >
+            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : undefined} /> Retry
+          </button>
         </div>
       ) : null}
     </motion.div>

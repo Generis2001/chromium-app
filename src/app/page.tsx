@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
@@ -96,80 +96,114 @@ const PREREQS = [
   },
 ]
 
+type ConnectButtonProps = {
+  large?: boolean
+  mounted: boolean
+  connected: boolean
+  onCorrectChain: boolean
+  connecting: boolean
+  error: string | null
+  hasMetaMask: boolean
+  connect: () => Promise<void>
+  switchToStudionet: () => Promise<void>
+}
+
+function subscribeMounted() {
+  return () => undefined
+}
+
+function getClientSnapshot() {
+  return true
+}
+
+function getServerSnapshot() {
+  return false
+}
+
+function ConnectButton({
+  large = false,
+  mounted,
+  connected,
+  onCorrectChain,
+  connecting,
+  error,
+  hasMetaMask,
+  connect,
+  switchToStudionet,
+}: ConnectButtonProps) {
+  const base = large
+    ? 'inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-bold text-lg transition-all duration-300'
+    : 'inline-flex items-center gap-3 px-8 py-4 rounded-2xl font-semibold text-base transition-all duration-300'
+
+  if (!mounted || !hasMetaMask) {
+    return (
+      <a
+        href="https://metamask.io/download/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${base} bg-amber-500 hover:bg-amber-400 text-white shadow-[0_0_40px_rgba(245,158,11,0.35)] hover:scale-105 active:scale-100`}
+      >
+        <AlertCircle size={large ? 20 : 18} />
+        Install MetaMask to Continue
+        <ExternalLink size={large ? 16 : 14} className="text-amber-200" />
+      </a>
+    )
+  }
+
+  if (connected && onCorrectChain) {
+    return (
+      <div className={`${base} bg-emerald-600 text-white shadow-[0_0_40px_rgba(16,185,129,0.35)] cursor-default`}>
+        <Loader2 size={large ? 20 : 18} className="animate-spin" />
+        Entering Chromium…
+      </div>
+    )
+  }
+
+  if (connected && !onCorrectChain) {
+    return (
+      <div className="flex flex-col items-center gap-3">
+        <button
+          onClick={() => void switchToStudionet()}
+          disabled={connecting}
+          className={`${base} bg-amber-500 hover:bg-amber-400 text-white shadow-[0_0_40px_rgba(245,158,11,0.35)] hover:scale-105 active:scale-100 disabled:opacity-60 disabled:scale-100`}
+        >
+          {connecting ? <Loader2 size={large ? 20 : 18} className="animate-spin" /> : <AlertCircle size={large ? 20 : 18} />}
+          Switch to GenLayer Studionet
+        </button>
+        {error && <p className="text-red-400 text-xs">{error}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <button
+        onClick={() => void connect()}
+        disabled={connecting}
+        className={`${base} bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-[0_0_40px_rgba(99,102,241,0.35)] hover:shadow-[0_0_60px_rgba(99,102,241,0.55)] hover:scale-105 active:scale-100 disabled:opacity-60 disabled:scale-100`}
+      >
+        {connecting ? <Loader2 size={large ? 20 : 18} className="animate-spin" /> : <Wallet size={large ? 20 : 18} />}
+        {connecting ? 'Connecting…' : 'Connect Wallet to Enter'}
+      </button>
+      {error && <p className="text-red-400 text-xs max-w-xs text-center">{error}</p>}
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const router = useRouter()
   const { connected, onCorrectChain, connecting, error, hasMetaMask, connect, switchToStudionet } = useWallet()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(
+    subscribeMounted,
+    getClientSnapshot,
+    getServerSnapshot,
+  )
 
   useEffect(() => {
     if (connected && onCorrectChain) {
       router.push('/app')
     }
   }, [connected, onCorrectChain, router])
-
-  function ConnectButton({ large = false }: { large?: boolean }) {
-    const base = large
-      ? 'inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-bold text-lg transition-all duration-300'
-      : 'inline-flex items-center gap-3 px-8 py-4 rounded-2xl font-semibold text-base transition-all duration-300'
-
-    if (!mounted || !hasMetaMask) {
-      return (
-        <a
-          href="https://metamask.io/download/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${base} bg-amber-500 hover:bg-amber-400 text-white shadow-[0_0_40px_rgba(245,158,11,0.35)] hover:scale-105 active:scale-100`}
-        >
-          <AlertCircle size={large ? 20 : 18} />
-          Install MetaMask to Continue
-          <ExternalLink size={large ? 16 : 14} className="text-amber-200" />
-        </a>
-      )
-    }
-
-    if (connected && onCorrectChain) {
-      return (
-        <div className={`${base} bg-emerald-600 text-white shadow-[0_0_40px_rgba(16,185,129,0.35)] cursor-default`}>
-          <Loader2 size={large ? 20 : 18} className="animate-spin" />
-          Entering Chromium…
-        </div>
-      )
-    }
-
-    if (connected && !onCorrectChain) {
-      return (
-        <div className="flex flex-col items-center gap-3">
-          <button
-            onClick={() => void switchToStudionet()}
-            disabled={connecting}
-            className={`${base} bg-amber-500 hover:bg-amber-400 text-white shadow-[0_0_40px_rgba(245,158,11,0.35)] hover:scale-105 active:scale-100 disabled:opacity-60 disabled:scale-100`}
-          >
-            {connecting ? <Loader2 size={large ? 20 : 18} className="animate-spin" /> : <AlertCircle size={large ? 20 : 18} />}
-            Switch to GenLayer Studionet
-          </button>
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex flex-col items-center gap-3">
-        <button
-          onClick={() => void connect()}
-          disabled={connecting}
-          className={`${base} bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 shadow-[0_0_40px_rgba(99,102,241,0.35)] hover:shadow-[0_0_60px_rgba(99,102,241,0.55)] hover:scale-105 active:scale-100 disabled:opacity-60 disabled:scale-100`}
-        >
-          {connecting ? <Loader2 size={large ? 20 : 18} className="animate-spin" /> : <Wallet size={large ? 20 : 18} />}
-          {connecting ? 'Connecting…' : 'Connect Wallet to Enter'}
-        </button>
-        {error && <p className="text-red-400 text-xs max-w-xs text-center">{error}</p>}
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-[#080e1a] text-white overflow-x-hidden">
@@ -231,7 +265,16 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.5 }}
           >
-            <ConnectButton />
+            <ConnectButton
+              mounted={mounted}
+              connected={connected}
+              onCorrectChain={onCorrectChain}
+              connecting={connecting}
+              error={error}
+              hasMetaMask={hasMetaMask}
+              connect={connect}
+              switchToStudionet={switchToStudionet}
+            />
           </motion.div>
         </motion.div>
 
@@ -406,7 +449,17 @@ export default function LandingPage() {
             Select a city, trigger an onchain transaction from your wallet, and receive a blockchain-verified weather decision in 2-5 minutes.
           </p>
 
-          <ConnectButton large />
+          <ConnectButton
+            large
+            mounted={mounted}
+            connected={connected}
+            onCorrectChain={onCorrectChain}
+            connecting={connecting}
+            error={error}
+            hasMetaMask={hasMetaMask}
+            connect={connect}
+            switchToStudionet={switchToStudionet}
+          />
         </motion.div>
       </section>
 

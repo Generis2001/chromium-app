@@ -172,6 +172,11 @@
     background-color: #F0F4FF;
   }
 
+  html.dark,
+  html.dark body {
+    background-color: #06111e;
+  }
+
   /* Custom scrollbar */
   * {
     scrollbar-width: thin;

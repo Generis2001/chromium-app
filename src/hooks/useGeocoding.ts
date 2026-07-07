@@ -20,9 +20,6 @@ export function useGeocoding(debounceMs: number = 350): GeocodingState {
 
   useEffect(() => {
     if (query.length < 2) {
-      setResults([])
-      setIsSearching(false)
-      setError(null)
       return
     }
 
@@ -63,6 +60,11 @@ export function useGeocoding(debounceMs: number = 350): GeocodingState {
 
   const setQuery = useCallback((q: string) => {
     setQueryState(q)
+    if (q.length < 2) {
+      setResults([])
+      setIsSearching(false)
+      setError(null)
+    }
   }, [])
 
   const clearResults = useCallback(() => {

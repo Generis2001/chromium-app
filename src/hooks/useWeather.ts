@@ -27,6 +27,7 @@ type WeatherState = {
   current: CurrentWeatherResponse | null
   forecast: Record<string, unknown> | null
   isLoading: boolean
+  isRefreshing: boolean
   error: string | null
   lastUpdated: Date | null
   refresh: () => Promise<void>
@@ -38,6 +39,7 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
   const [current, setCurrent] = useState<CurrentWeatherResponse | null>(null)
   const [forecast, setForecast] = useState<Record<string, unknown> | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
@@ -51,14 +53,28 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
   }, [lat, lon])
 
   const fetchWeather = useCallback(
-    async (fetchLat: string, fetchLon: string): Promise<void> => {
-      setIsLoading(true)
+    async (
+      fetchLat: string,
+      fetchLon: string,
+      options?: { forceFresh?: boolean; preserveCurrent?: boolean }
+    ): Promise<void> => {
+      const forceFresh = options?.forceFresh ?? false
+      const preserveCurrent = options?.preserveCurrent ?? false
+      const querySuffix = forceFresh ? `&refresh=${Date.now()}` : ''
+
+      if (!preserveCurrent) {
+        setIsLoading(true)
+      }
       setError(null)
       try {
         const [currentRes, forecastRes] = await Promise.all([
-          fetch(`/api/weather/current?lat=${encodeURIComponent(fetchLat)}&lon=${encodeURIComponent(fetchLon)}`),
           fetch(
-            `/api/weather/forecast?lat=${encodeURIComponent(fetchLat)}&lon=${encodeURIComponent(fetchLon)}&days=7&hours=24`
+            `/api/weather/current?lat=${encodeURIComponent(fetchLat)}&lon=${encodeURIComponent(fetchLon)}${querySuffix}`,
+            forceFresh ? { cache: 'no-store' } : undefined
+          ),
+          fetch(
+            `/api/weather/forecast?lat=${encodeURIComponent(fetchLat)}&lon=${encodeURIComponent(fetchLon)}&days=7&hours=24${querySuffix}`,
+            forceFresh ? { cache: 'no-store' } : undefined
           ),
         ])
 
@@ -70,22 +86,31 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
         if (currentJson.ok) {
           setCurrent(currentJson.data)
         } else {
-          setCurrent(null)
+          if (!preserveCurrent) {
+            setCurrent(null)
+          }
           setError(currentJson.error)
         }
 
         if (forecastJson.ok) {
           setForecast(forecastJson.data)
         } else {
-          setForecast(null)
+          if (!preserveCurrent) {
+            setForecast(null)
+          }
         }
 
         setLastUpdated(new Date())
       } catch (err) {
-        setCurrent(null)
+        if (!preserveCurrent) {
+          setCurrent(null)
+          setForecast(null)
+        }
         setError(err instanceof Error ? err.message : 'Failed to fetch weather')
       } finally {
-        setIsLoading(false)
+        if (!preserveCurrent) {
+          setIsLoading(false)
+        }
       }
     },
     []
@@ -95,7 +120,12 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
     const currentLat = latRef.current
     const currentLon = lonRef.current
     if (!currentLat || !currentLon) return
-    await fetchWeather(currentLat, currentLon)
+    setIsRefreshing(true)
+    try {
+      await fetchWeather(currentLat, currentLon, { forceFresh: true, preserveCurrent: true })
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [fetchWeather])
 
   // Fetch on lat/lon change
@@ -124,6 +154,7 @@ export function useWeather(lat: string | null, lon: string | null): WeatherState
     current,
     forecast,
     isLoading,
+    isRefreshing,
     error,
     lastUpdated,
     refresh,

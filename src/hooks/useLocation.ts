@@ -20,6 +20,7 @@ type LocationState = {
 }
 
 function loadRecent(): GeocodingResult[] {
+  if (typeof window === 'undefined') return []
   try {
     const raw = localStorage.getItem(RECENT_KEY)
     if (raw) return JSON.parse(raw) as GeocodingResult[]
@@ -27,6 +28,17 @@ function loadRecent(): GeocodingResult[] {
     // ignore
   }
   return []
+}
+
+function loadStoredLocation(): GeocodingResult | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return JSON.parse(raw) as GeocodingResult
+  } catch {
+    // ignore parse errors
+  }
+  return null
 }
 
 function saveRecent(locations: GeocodingResult[]): void {
@@ -38,8 +50,8 @@ function saveRecent(locations: GeocodingResult[]): void {
 }
 
 export function useLocation(): LocationState {
-  const [location, setLocationState] = useState<GeocodingResult | null>(null)
-  const [recentLocations, setRecentLocations] = useState<GeocodingResult[]>([])
+  const [location, setLocationState] = useState<GeocodingResult | null>(() => loadStoredLocation())
+  const [recentLocations, setRecentLocations] = useState<GeocodingResult[]>(() => loadRecent())
   const [isDetecting, setIsDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,25 +79,10 @@ export function useLocation(): LocationState {
   }, [])
 
   useEffect(() => {
-    let stored: GeocodingResult | null = null
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        stored = JSON.parse(raw) as GeocodingResult
-      }
-    } catch {
-      // ignore parse errors
-    }
-
-    if (stored) {
-      setLocationState(stored)
-    } else {
-      void detectLocation()
-    }
-
-    setRecentLocations(loadRecent())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (location) return
+    const id = setTimeout(() => void detectLocation(), 0)
+    return () => clearTimeout(id)
+  }, [detectLocation, location])
 
   const addRecentLocation = useCallback((loc: GeocodingResult) => {
     setRecentLocations((prev) => {

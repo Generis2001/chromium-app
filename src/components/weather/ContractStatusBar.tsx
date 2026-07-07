@@ -92,9 +92,12 @@ export function ContractStatusBar() {
   }, []);
 
   useEffect(() => {
-    void fetchHealth();
+    const initialId = setTimeout(() => void fetchHealth(), 0);
     const id = setInterval(() => void fetchHealth(), 30_000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(initialId);
+      clearInterval(id);
+    };
   }, [fetchHealth]);
 
   const contracts = data?.contracts ?? null;
